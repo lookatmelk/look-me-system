@@ -1,70 +1,82 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { CheckCircle2, XCircle, X } from 'lucide-react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState, useCallback } from "react";
+import { CheckCircle2, XCircle, AlertCircle, X } from "lucide-react";
+import clsx from "clsx";
 
-export type ToastType = 'success' | 'error';
+type ToastType = "success" | "error" | "warning";
 
 interface Toast {
-  id: string;
+  id: number;
   type: ToastType;
   message: string;
 }
 
-let toastListeners: ((toast: Toast) => void)[] = [];
+let addToastFn: ((type: ToastType, message: string) => void) | null = null;
 
 export function showToast(type: ToastType, message: string) {
-  const toast: Toast = { id: Math.random().toString(36).slice(2), type, message };
-  toastListeners.forEach((listener) => listener(toast));
+  addToastFn?.(type, message);
 }
 
+const iconMap = {
+  success: CheckCircle2,
+  error: XCircle,
+  warning: AlertCircle,
+};
+
+const styleMap: Record<ToastType, string> = {
+  success: "bg-white border-l-4 border-green-500",
+  error:   "bg-white border-l-4 border-red-500",
+  warning: "bg-white border-l-4 border-amber-500",
+};
+
+const iconColorMap: Record<ToastType, string> = {
+  success: "text-green-500",
+  error:   "text-red-500",
+  warning: "text-amber-500",
+};
+
 export function Toaster() {
-  const [mounted, setMounted] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((toast: Toast) => {
-    setToasts((prev) => [...prev, toast]);
+  const addToast = useCallback((type: ToastType, message: string) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+      setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   }, []);
 
   useEffect(() => {
-    setMounted(true);
-    toastListeners.push(addToast);
-    return () => {
-      toastListeners = toastListeners.filter((l) => l !== addToast);
-    };
+    addToastFn = addToast;
+    return () => { addToastFn = null; };
   }, [addToast]);
 
-  if (!mounted) return null;
+  const remove = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
-  return createPortal(
-    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-300 ${
-            toast.type === 'success'
-              ? 'bg-white border-green-200 text-green-800'
-              : 'bg-white border-red-200 text-red-800'
-          }`}
-        >
-          {toast.type === 'success'
-            ? <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-            : <XCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-          }
-          <p className="text-sm font-medium flex-1">{toast.message}</p>
-          <button
-            onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+  return (
+    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+      {toasts.map((toast) => {
+        const Icon = iconMap[toast.type];
+        return (
+          <div
+            key={toast.id}
+            className={clsx(
+              "flex items-start gap-3 px-4 py-3.5 rounded-xl shadow-lg pointer-events-auto animate-slide-toast",
+              styleMap[toast.type]
+            )}
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-    </div>,
-    document.body,
+            <Icon className={clsx("h-5 w-5 flex-shrink-0 mt-0.5", iconColorMap[toast.type])} />
+            <p className="text-sm font-medium text-slate-800 flex-1 leading-snug">{toast.message}</p>
+            <button
+              onClick={() => remove(toast.id)}
+              className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }

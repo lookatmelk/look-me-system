@@ -16,7 +16,7 @@ export default auth((req: NextRequest & { auth: any }) => {
 
   // Redirect authenticated users away from login page
   if (isLoginPage && session) {
-    return NextResponse.redirect(new URL('/admin/purchasing', req.url));
+    return NextResponse.redirect(new URL('/admin/dashboard', req.url));
   }
 
   // Protect admin routes — redirect to login
