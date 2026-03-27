@@ -2,6 +2,34 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongoose';
 import PurchaseRecord from '@/models/PurchaseRecord';
 
+const PAYMENT_DATE_REQUIRED_MODES = ['CHEQUE', 'CREDIT'];
+
+function getTodayString() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function applyPaymentRules(body: any) {
+  const payload = { ...body };
+  const paymentMode = payload.paymentMode;
+  const today = getTodayString();
+
+  if (!PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode)) {
+    payload.paymentDate = today;
+  }
+
+  if (PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode) && !payload.paymentDate) {
+    return { error: 'Payment Date is required for CHEQUE and CREDIT payments.' };
+  }
+
+  if (PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode)) {
+    payload.status = 'PENDING';
+  } else {
+    payload.status = 'DONE';
+  }
+
+  return { payload };
+}
+
 export async function GET(request: Request) {
   try {
     await dbConnect();
@@ -30,12 +58,17 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     const body = await request.json();
+    const { payload, error } = applyPaymentRules(body);
+
+    if (error) {
+      return NextResponse.json({ success: false, error }, { status: 400 });
+    }
     
-    if (body.qty && body.rate) {
-      body.amount = Number((body.qty * body.rate).toFixed(2));
+    if (payload.qty && payload.rate) {
+      payload.amount = Number((payload.qty * payload.rate).toFixed(2));
     }
 
-    const record = await PurchaseRecord.create(body);
+    const record = await PurchaseRecord.create(payload);
     
     // Return populated doc
     const populatedRecord = await PurchaseRecord.findById(record._id)

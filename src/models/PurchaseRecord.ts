@@ -34,7 +34,7 @@ const PurchaseRecordSchema: Schema = new Schema(
     paymentMode: { 
       type: String, 
       required: true,
-      enum: ['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'OTHER']
+      enum: ['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'CREDIT', 'OTHER']
     },
     paymentDate: { type: Date },
     status: { 

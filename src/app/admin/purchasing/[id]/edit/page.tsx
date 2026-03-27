@@ -10,6 +10,9 @@ import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 
+const PAYMENT_DATE_REQUIRED_MODES = ['CHEQUE', 'CREDIT'] as const;
+const TODAY = new Date().toISOString().split('T')[0];
+
 const schema = z.object({
   buyDate: z.string().min(1, 'Buy Date is required'),
   supplierId: z.string().min(1, 'Supplier is required'),
@@ -18,9 +21,17 @@ const schema = z.object({
   units: z.enum(['YARDS', 'UNITS', 'CONS', 'SETS', 'OTHER']),
   qty: z.number({ error: 'Enter a valid number' }).min(0.01, 'Quantity must be > 0'),
   rate: z.number({ error: 'Enter a valid number' }).min(0.01, 'Rate must be > 0'),
-  paymentMode: z.enum(['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'OTHER']),
+  paymentMode: z.enum(['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'CREDIT', 'OTHER']),
   paymentDate: z.string().optional().or(z.literal('')),
   status: z.enum(['PENDING', 'DONE', 'CANCELLED', 'RETURNED']),
+}).superRefine((data, ctx) => {
+  if (PAYMENT_DATE_REQUIRED_MODES.includes(data.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]) && !data.paymentDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Payment Date is required for CHEQUE and CREDIT payments',
+      path: ['paymentDate'],
+    });
+  }
 });
 
 type PurchaseFormValues = z.infer<typeof schema>;
@@ -46,13 +57,17 @@ export default function EditPurchasePage({ params }: PageProps) {
   const [serverError, setServerError] = useState('');
   const [recordId, setRecordId] = useState('');
 
-  const { register, handleSubmit, formState: { errors }, watch, reset } = useForm<PurchaseFormValues>({
+  const { register, handleSubmit, formState: { errors }, watch, reset, setValue, clearErrors } = useForm<PurchaseFormValues>({
     resolver: zodResolver(schema),
   });
 
   const qty = watch('qty');
   const rate = watch('rate');
+  const paymentMode = watch('paymentMode');
+  const paymentDate = watch('paymentDate');
+  const status = watch('status');
   const amount = (Number(qty || 0) * Number(rate || 0)).toFixed(2);
+  const isManualPaymentDateMode = PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]);
 
   useEffect(() => {
     const init = async () => {
@@ -89,12 +104,47 @@ export default function EditPurchasePage({ params }: PageProps) {
     init();
   }, [params, reset]);
 
+  useEffect(() => {
+    if (!paymentMode) {
+      return;
+    }
+
+    if (!isManualPaymentDateMode) {
+      setValue('paymentDate', TODAY, { shouldValidate: true });
+      clearErrors('paymentDate');
+    }
+  }, [paymentMode, isManualPaymentDateMode, setValue, clearErrors]);
+
+  useEffect(() => {
+    const effectivePaymentDate = isManualPaymentDateMode ? paymentDate : TODAY;
+
+    if (isManualPaymentDateMode) {
+      if (status !== 'PENDING') {
+        setValue('status', 'PENDING', { shouldValidate: true });
+      }
+      return;
+    }
+
+    if (effectivePaymentDate === TODAY && status !== 'DONE') {
+      setValue('status', 'DONE', { shouldValidate: true });
+    }
+  }, [isManualPaymentDateMode, paymentDate, status, setValue]);
+
   const onSubmit = async (values: PurchaseFormValues) => {
     setSubmitting(true);
     setServerError('');
     try {
+      const payload = { ...values };
+
+      if (!PAYMENT_DATE_REQUIRED_MODES.includes(payload.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number])) {
+        payload.paymentDate = TODAY;
+        payload.status = 'DONE';
+      } else {
+        payload.status = 'PENDING';
+      }
+
       await axios.put(`/api/purchasing/${recordId}`, {
-        ...values,
+        ...payload,
         amount: parseFloat(amount),
       });
       router.push('/admin/purchasing?success=1');
@@ -226,16 +276,20 @@ export default function EditPurchasePage({ params }: PageProps) {
                 <option value="CASH">CASH</option>
                 <option value="BANK TRANSFER">BANK TRANSFER</option>
                 <option value="CARD">CARD</option>
+                <option value="CREDIT">CREDIT</option>
                 <option value="OTHER">OTHER</option>
               </select>
             </div>
             <div>
-              <label className={labelClass}>Payment Date <span className="text-xs text-gray-400 font-normal">(optional)</span></label>
-              <input type="date" {...register('paymentDate')} className={inputClass()} />
+              <label className={labelClass}>
+                Payment Date {isManualPaymentDateMode ? <span className="text-red-500">*</span> : <span className="text-xs text-gray-400 font-normal">(auto: today)</span>}
+              </label>
+              <input type="date" {...register('paymentDate')} className={inputClass()} disabled={!isManualPaymentDateMode} />
+              {errors.paymentDate && <p className={errorClass}>{errors.paymentDate.message}</p>}
             </div>
             <div>
               <label className={labelClass}>Status <span className="text-red-500">*</span></label>
-              <select {...register('status')} className={inputClass()}>
+              <select {...register('status')} className={inputClass()} disabled>
                 <option value="PENDING">PENDING</option>
                 <option value="DONE">DONE</option>
                 <option value="CANCELLED">CANCELLED</option>

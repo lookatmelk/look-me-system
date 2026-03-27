@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/Button';
 import axios from 'axios';
 import { AlertCircle, CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
 
+const PAYMENT_DATE_REQUIRED_MODES = ['CHEQUE', 'CREDIT'] as const;
+const TODAY = new Date().toISOString().split('T')[0];
+
 const purchasingSchema = z.object({
   buyDate: z.string().min(1, "Buy Date is required"),
   supplierId: z.string().min(1, "Supplier is required"),
@@ -17,10 +20,18 @@ const purchasingSchema = z.object({
   units: z.enum(['YARDS', 'UNITS', 'CONS', 'SETS', 'OTHER']),
   qty: z.number().min(0.01, "Quantity must be greater than 0"),
   rate: z.number().min(0.01, "Rate must be greater than 0"),
-  paymentMode: z.enum(['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'OTHER']),
+  paymentMode: z.enum(['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'CREDIT', 'OTHER']),
   paymentDate: z.string().optional().or(z.literal('')),
   status: z.enum(['PENDING', 'DONE', 'CANCELLED', 'RETURNED']),
   linkedOrderId: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (PAYMENT_DATE_REQUIRED_MODES.includes(data.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]) && !data.paymentDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Payment Date is required for CHEQUE and CREDIT payments',
+      path: ['paymentDate'],
+    });
+  }
 });
 
 type PurchasingFormValues = z.infer<typeof purchasingSchema>;
@@ -38,7 +49,7 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   
-  const { register, handleSubmit, formState: { errors }, reset, watch, trigger } = useForm<PurchasingFormValues>({
+  const { register, handleSubmit, formState: { errors }, reset, watch, trigger, setValue, clearErrors } = useForm<PurchasingFormValues>({
     resolver: zodResolver(purchasingSchema),
     defaultValues: {
       buyDate: new Date().toISOString().split('T')[0],
@@ -56,7 +67,11 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
 
   const qty = watch('qty');
   const rate = watch('rate');
+  const paymentMode = watch('paymentMode');
+  const paymentDate = watch('paymentDate');
+  const status = watch('status');
   const amount = (Number(qty || 0) * Number(rate || 0)).toFixed(2);
+  const isManualPaymentDateMode = PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]);
 
   useEffect(() => {
     if (isOpen) {
@@ -105,6 +120,49 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
     }
   };
 
+  useEffect(() => {
+    if (!isOpen || !paymentMode) {
+      return;
+    }
+
+    if (!isManualPaymentDateMode) {
+      setValue('paymentDate', TODAY, { shouldValidate: true });
+      clearErrors('paymentDate');
+    }
+  }, [isOpen, paymentMode, isManualPaymentDateMode, setValue, clearErrors]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const effectivePaymentDate = isManualPaymentDateMode ? paymentDate : TODAY;
+
+    if (isManualPaymentDateMode) {
+      if (status !== 'PENDING') {
+        setValue('status', 'PENDING', { shouldValidate: true });
+      }
+      return;
+    }
+
+    if (effectivePaymentDate === TODAY && status !== 'DONE') {
+      setValue('status', 'DONE', { shouldValidate: true });
+    }
+  }, [isOpen, isManualPaymentDateMode, paymentDate, status, setValue]);
+
+  const handleFormSubmit = async (values: PurchasingFormValues) => {
+    const payload = { ...values };
+
+    if (!PAYMENT_DATE_REQUIRED_MODES.includes(payload.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number])) {
+      payload.paymentDate = TODAY;
+      payload.status = 'DONE';
+    } else {
+      payload.status = 'PENDING';
+    }
+
+    await onSubmit(payload);
+  };
+
   const nextStep = async () => {
     let isValid = false;
     if (step === 1) {
@@ -139,7 +197,7 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         {step === 1 && (
           <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
             <div>
@@ -221,18 +279,22 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
                 <option value="CASH">CASH</option>
                 <option value="BANK TRANSFER">BANK TRANSFER</option>
                 <option value="CARD">CARD</option>
+                <option value="CREDIT">CREDIT</option>
                 <option value="OTHER">OTHER</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date (Optional)</label>
-              <input type="date" {...register('paymentDate')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Date {isManualPaymentDateMode ? <span className="text-red-500">*</span> : <span className="text-gray-500">(auto: today)</span>}
+              </label>
+              <input type="date" {...register('paymentDate')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white" disabled={!isManualPaymentDateMode} />
+              {errors.paymentDate && <p className="mt-1 text-xs text-red-600">{errors.paymentDate.message}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status <span className="text-red-500">*</span></label>
-              <select {...register('status')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white font-medium">
+              <select {...register('status')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white font-medium" disabled>
                 <option value="PENDING">PENDING</option>
                 <option value="DONE">DONE</option>
                 <option value="CANCELLED">CANCELLED</option>

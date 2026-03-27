@@ -2,6 +2,34 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongoose';
 import PurchaseRecord from '@/models/PurchaseRecord';
 
+const PAYMENT_DATE_REQUIRED_MODES = ['CHEQUE', 'CREDIT'];
+
+function getTodayString() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function applyPaymentRules(body: any) {
+  const payload = { ...body };
+  const paymentMode = payload.paymentMode;
+  const today = getTodayString();
+
+  if (!PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode)) {
+    payload.paymentDate = today;
+  }
+
+  if (PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode) && !payload.paymentDate) {
+    return { error: 'Payment Date is required for CHEQUE and CREDIT payments.' };
+  }
+
+  if (PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode)) {
+    payload.status = 'PENDING';
+  } else {
+    payload.status = 'DONE';
+  }
+
+  return { payload };
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
@@ -23,12 +51,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     await dbConnect();
     const { id } = await params;
     const body = await request.json();
+    const { payload, error } = applyPaymentRules(body);
 
-    if (body.qty !== undefined && body.rate !== undefined) {
-      body.amount = Number((body.qty * body.rate).toFixed(2));
+    if (error) {
+      return NextResponse.json({ success: false, error }, { status: 400 });
     }
 
-    const record = await PurchaseRecord.findByIdAndUpdate(id, body, {
+    if (payload.qty !== undefined && payload.rate !== undefined) {
+      payload.amount = Number((payload.qty * payload.rate).toFixed(2));
+    }
+
+    const record = await PurchaseRecord.findByIdAndUpdate(id, payload, {
       new: true,
       runValidators: true,
     })
