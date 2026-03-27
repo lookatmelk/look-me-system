@@ -34,3 +34,34 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Scheduled Email Notifications (Resend)
+
+This project includes scheduled cheque payment reminders sent with Resend (no SMTP / no Google App Passwords).
+
+### Email Routing
+
+- Sender: `hello.lookatme.lk@gmail.com`
+- Recipient: `lookatmetextile@gmail.com`
+
+### Trigger Rules
+
+- Payment mode must be `CHEQUE`
+- High value (`amount > 100000`): reminders at 3 days before and 1 day before payment date
+- Standard value (`amount < 100000`): reminder at 1 day before payment date
+
+### Required Environment Variables
+
+Set these in your deployment environment:
+
+- `MONGODB_URI`
+- `RESEND_API_KEY`
+- `CRON_SECRET`
+
+### Cron Endpoint
+
+- Route: `/api/cron/purchasing-reminders`
+- Method: `GET`
+- Auth: `Authorization: Bearer <CRON_SECRET>`
+
+The schedule is defined in `vercel.json` and runs daily.

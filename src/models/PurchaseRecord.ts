@@ -13,6 +13,7 @@ export interface IPurchaseRecord extends Document {
   paymentDate?: Date;
   status: string;
   linkedOrderId?: mongoose.Types.ObjectId;
+  emailReminderKeys: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,9 +45,12 @@ const PurchaseRecordSchema: Schema = new Schema(
       default: 'PENDING'
     },
     linkedOrderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    emailReminderKeys: { type: [String], default: [] },
   },
   { timestamps: true }
 );
+
+PurchaseRecordSchema.index({ paymentMode: 1, paymentDate: 1, status: 1 });
 
 // Auto calculate amount
 PurchaseRecordSchema.pre<IPurchaseRecord>('save', async function() {

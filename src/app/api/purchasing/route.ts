@@ -37,11 +37,53 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
     const supplierId = searchParams.get('supplierId');
     const categoryId = searchParams.get('categoryId');
+    const paymentModes = searchParams.get('paymentModes');
+    const dateType = searchParams.get('dateType');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    const parseStartDate = (value: string | null) => {
+      if (!value) return null;
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const parseEndDateExclusive = (value: string | null) => {
+      if (!value) return null;
+      const date = new Date(`${value}T00:00:00.000Z`);
+      if (Number.isNaN(date.getTime())) return null;
+      date.setUTCDate(date.getUTCDate() + 1);
+      return date;
+    };
     
     let query: any = {};
     if (status) query.status = status;
     if (supplierId) query.supplierId = supplierId;
     if (categoryId) query.categoryId = categoryId;
+    if (paymentModes) {
+      const parsedModes = paymentModes
+        .split(',')
+        .map(mode => mode.trim())
+        .filter(mode => Boolean(mode) && mode !== 'ALL');
+
+      if (parsedModes.length > 0) {
+        query.paymentMode = { $in: parsedModes };
+      }
+    }
+
+    const dateField = dateType === 'buyDate' ? 'buyDate' : dateType === 'paymentDate' ? 'paymentDate' : null;
+    if (dateField) {
+      const range: any = {};
+      const start = parseStartDate(startDate);
+      const endExclusive = parseEndDateExclusive(endDate);
+
+      if (start) range.$gte = start;
+      if (endExclusive) range.$lt = endExclusive;
+
+      if (Object.keys(range).length > 0) {
+        query[dateField] = range;
+      }
+    }
 
     const records = await PurchaseRecord.find(query)
       .populate('supplierId', 'name')
