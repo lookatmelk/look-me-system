@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   RotateCcw,
   XCircle,
+  Wallet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -27,6 +28,7 @@ interface Stats {
   totalCategories: number;
   pendingCount: number;
   doneCount: number;
+  outstandingDebt: number;
 }
 
 interface RecentRecord {
@@ -74,10 +76,10 @@ function StatCard({
       <div className="flex items-start justify-between relative">
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">{title}</p>
-          <p className="text-3xl font-black text-slate-900 truncate">{value}</p>
+          <p className="text-md font-black text-slate-900 break-words leading-tight">{value}</p>
           {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
         </div>
-        <div className={clsx("h-11 w-11 rounded-xl flex items-center justify-center text-white flex-shrink-0", accent)}>
+        <div className={clsx("h-11 w-11 rounded-xl flex items-center justify-center text-white flex-shrink-0 ml-3", accent)}>
           <Icon style={{ width: 20, height: 20 }} />
         </div>
       </div>
@@ -104,9 +106,12 @@ export default function DashboardPage() {
         const suppliers = supRes.data.data || [];
         const categories = catRes.data.data || [];
 
-        const totalSpend = records.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+        const totalSpend = records.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
         const pendingCount = records.filter((r: any) => r.status === "PENDING").length;
         const doneCount = records.filter((r: any) => r.status === "DONE").length;
+        const outstandingDebt = records
+          .filter((r: any) => r.status === "PENDING")
+          .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
 
         setStats({
           totalPurchases: records.length,
@@ -115,6 +120,7 @@ export default function DashboardPage() {
           totalCategories: categories.length,
           pendingCount,
           doneCount,
+          outstandingDebt,
         });
 
         setRecent(
@@ -144,13 +150,13 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       {loading ? (
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
             <div key={i} className="skeleton h-32 rounded-2xl" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 stagger-children">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 stagger-children">
           <StatCard
             title="Total Records"
             value={stats?.totalPurchases ?? 0}
@@ -168,12 +174,20 @@ export default function DashboardPage() {
             delay={60}
           />
           <StatCard
+            title="Outstanding"
+            value={stats ? formatCurrency(stats.outstandingDebt) : "—"}
+            sub={`${stats?.pendingCount ?? 0} unpaid record${(stats?.pendingCount ?? 0) !== 1 ? 's' : ''}`}
+            icon={Wallet}
+            accent="bg-rose-500"
+            delay={120}
+          />
+          <StatCard
             title="Suppliers"
             value={stats?.totalSuppliers ?? 0}
             sub="Active vendors"
             icon={Users}
             accent="bg-sky-500"
-            delay={120}
+            delay={180}
           />
           <StatCard
             title="Categories"
@@ -181,7 +195,7 @@ export default function DashboardPage() {
             sub="Product types"
             icon={Tags}
             accent="bg-amber-500"
-            delay={180}
+            delay={240}
           />
         </div>
       )}
