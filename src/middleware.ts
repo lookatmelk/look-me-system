@@ -12,7 +12,8 @@ export default auth((req: NextRequest & { auth: any }) => {
   const isApiProtected =
     pathname.startsWith('/api/suppliers') ||
     pathname.startsWith('/api/categories') ||
-    pathname.startsWith('/api/purchasing');
+    pathname.startsWith('/api/purchasing') ||
+    pathname.startsWith('/api/notifications');
   const isLoginPage = pathname === '/login';
 
   const session = req.auth;
@@ -47,5 +48,6 @@ export const config = {
     '/api/suppliers/:path*',
     '/api/categories/:path*',
     '/api/purchasing/:path*',
+    '/api/notifications/:path*',
   ],
 };

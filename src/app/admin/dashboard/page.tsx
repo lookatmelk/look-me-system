@@ -20,6 +20,7 @@ import {
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import ChequeAlertModal from "@/components/notifications/ChequeAlertModal";
 
 interface Stats {
   totalPurchases: number;
@@ -38,6 +39,22 @@ interface RecentRecord {
   amount: number;
   status: string;
   supplierId?: { name: string };
+}
+
+interface NotificationItem {
+  _id: string;
+  title: string;
+  message: string;
+  amount: number;
+  paymentDate: string;
+  daysBefore: number;
+  status: string;
+  createdAt: string;
+  purchaseRecordId?: {
+    _id: string;
+    description: string;
+    supplierId?: { name: string };
+  };
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -93,6 +110,10 @@ export default function DashboardPage() {
   const [recent, setRecent] = useState<RecentRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Notification alert state
+  const [alertNotifications, setAlertNotifications] = useState<NotificationItem[]>([]);
+  const [showAlert, setShowAlert] = useState(false);
+
   useEffect(() => {
     async function load() {
       try {
@@ -135,11 +156,46 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  // Generate and fetch notifications on dashboard load
+  useEffect(() => {
+    async function loadNotifications() {
+      try {
+        // Step 1: Generate any new notifications
+        await axios.post("/api/notifications/generate");
+
+        // Step 2: Fetch UNREAD notifications for the alert popup
+        const res = await axios.get("/api/notifications?status=UNREAD");
+        const unread: NotificationItem[] = res.data.data || [];
+
+        if (unread.length > 0) {
+          setAlertNotifications(unread);
+          setShowAlert(true);
+        }
+      } catch {
+        // silent — alert system should not break dashboard
+      }
+    }
+    loadNotifications();
+  }, []);
+
+  const handleAlertDismissed = () => {
+    setShowAlert(false);
+    setAlertNotifications([]);
+  };
+
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", maximumFractionDigits: 0 }).format(n);
 
   return (
     <div className="space-y-7 animate-fade-in">
+      {/* Cheque Alert Modal */}
+      {showAlert && alertNotifications.length > 0 && (
+        <ChequeAlertModal
+          notifications={alertNotifications}
+          onAcknowledged={handleAlertDismissed}
+        />
+      )}
+
       {/* Page Title */}
       <div className="animate-fade-in-up" style={{ animationDelay: "0ms", animationFillMode: "both" }}>
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">Dashboard</h1>
