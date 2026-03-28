@@ -41,6 +41,7 @@ export async function GET(request: Request) {
     const dateType = searchParams.get('dateType');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const limitParam = searchParams.get('limit');
 
     const parseStartDate = (value: string | null) => {
       if (!value) return null;
@@ -85,10 +86,21 @@ export async function GET(request: Request) {
       }
     }
 
-    const records = await PurchaseRecord.find(query)
+    const parsedLimit = limitParam ? Number(limitParam) : null;
+    const limit = parsedLimit && Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.floor(parsedLimit)
+      : null;
+
+    let recordsQuery = PurchaseRecord.find(query)
       .populate('supplierId', 'name')
       .populate('categoryId', 'name imageUrl')
       .sort({ buyDate: -1 });
+
+    if (limit) {
+      recordsQuery = recordsQuery.limit(limit);
+    }
+
+    const records = await recordsQuery;
 
     return NextResponse.json({ success: true, data: records });
   } catch (error: any) {

@@ -96,13 +96,15 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [purchRes, supRes, catRes] = await Promise.all([
+        const [purchRes, recentRes, supRes, catRes] = await Promise.all([
           axios.get("/api/purchasing"),
+          axios.get("/api/purchasing?limit=6"),
           axios.get("/api/suppliers"),
           axios.get("/api/categories"),
         ]);
 
         const records: RecentRecord[] = purchRes.data.data || [];
+        const latestRecords: RecentRecord[] = recentRes.data.data || [];
         const suppliers = supRes.data.data || [];
         const categories = catRes.data.data || [];
 
@@ -123,11 +125,7 @@ export default function DashboardPage() {
           outstandingDebt,
         });
 
-        setRecent(
-          [...records]
-            .sort((a: any, b: any) => new Date(b.buyDate).getTime() - new Date(a.buyDate).getTime())
-            .slice(0, 6)
-        );
+        setRecent(latestRecords);
       } catch {
         // silent
       } finally {
