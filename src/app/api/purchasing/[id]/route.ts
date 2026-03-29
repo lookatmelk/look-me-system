@@ -12,6 +12,17 @@ function applyPaymentRules(body: any) {
   const payload = { ...body };
   const paymentMode = payload.paymentMode;
   const today = getTodayString();
+  const isChequePayment = paymentMode === 'CHEQUE';
+
+  if (isChequePayment && !String(payload.chequeNumber || '').trim()) {
+    return { error: 'Cheque Number is required for CHEQUE payments.' };
+  }
+
+  if (isChequePayment) {
+    payload.chequeNumber = String(payload.chequeNumber).trim();
+  } else {
+    payload.chequeNumber = undefined;
+  }
 
   if (!PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode)) {
     payload.paymentDate = today;
@@ -19,12 +30,6 @@ function applyPaymentRules(body: any) {
 
   if (PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode) && !payload.paymentDate) {
     return { error: 'Payment Date is required for CHEQUE and CREDIT payments.' };
-  }
-
-  if (PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode)) {
-    payload.status = 'PENDING';
-  } else {
-    payload.status = 'DONE';
   }
 
   return { payload };

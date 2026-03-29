@@ -79,4 +79,46 @@ describe('PurchaseRecord Model', () => {
     expect(error).toBeDefined();
     expect(error.errors.qty).toBeDefined();
   });
+
+  it('requires chequeNumber when paymentMode is CHEQUE', async () => {
+    const recordData = {
+      buyDate: new Date(),
+      supplierId: mockSupplierId,
+      categoryId: mockCategoryId,
+      description: 'Cheque payment without number',
+      units: 'UNITS',
+      qty: 5,
+      rate: 20,
+      paymentMode: 'CHEQUE',
+      paymentDate: new Date(),
+      status: 'PENDING',
+    };
+
+    let error;
+    try {
+      await new PurchaseRecord(recordData).save();
+    } catch (err) {
+      error = err as any;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.errors.chequeNumber).toBeDefined();
+  });
+
+  it('allows chequeNumber to be empty for non-cheque payment modes', async () => {
+    const recordData = {
+      buyDate: new Date(),
+      supplierId: mockSupplierId,
+      categoryId: mockCategoryId,
+      description: 'Cash payment with no cheque number',
+      units: 'UNITS',
+      qty: 5,
+      rate: 20,
+      paymentMode: 'CASH',
+      status: 'DONE',
+    };
+
+    const record = await new PurchaseRecord(recordData).save();
+    expect(record.chequeNumber).toBeUndefined();
+  });
 });

@@ -22,9 +22,18 @@ const schema = z.object({
   qty: z.number({ error: 'Enter a valid number' }).min(0.01, 'Quantity must be > 0'),
   rate: z.number({ error: 'Enter a valid number' }).min(0.01, 'Rate must be > 0'),
   paymentMode: z.enum(['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'CREDIT', 'OTHER']),
+  chequeNumber: z.string().optional().or(z.literal('')),
   paymentDate: z.string().optional().or(z.literal('')),
   status: z.enum(['PENDING', 'DONE', 'CANCELLED', 'RETURNED']),
 }).superRefine((data, ctx) => {
+  if (data.paymentMode === 'CHEQUE' && !data.chequeNumber?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Cheque Number is required for CHEQUE payments',
+      path: ['chequeNumber'],
+    });
+  }
+
   if (PAYMENT_DATE_REQUIRED_MODES.includes(data.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]) && !data.paymentDate) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -62,6 +71,7 @@ export default function AddPurchasePage() {
       qty: 0,
       rate: 0,
       paymentMode: 'CASH',
+      chequeNumber: '',
       paymentDate: '',
       status: 'PENDING',
     },
@@ -70,9 +80,8 @@ export default function AddPurchasePage() {
   const qty = watch('qty');
   const rate = watch('rate');
   const paymentMode = watch('paymentMode');
-  const paymentDate = watch('paymentDate');
-  const status = watch('status');
   const amount = (Number(qty || 0) * Number(rate || 0)).toFixed(2);
+  const isChequePayment = paymentMode === 'CHEQUE';
   const isManualPaymentDateMode = PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]);
 
   useEffect(() => {
@@ -90,19 +99,11 @@ export default function AddPurchasePage() {
   }, [isManualPaymentDateMode, setValue, clearErrors]);
 
   useEffect(() => {
-    const effectivePaymentDate = isManualPaymentDateMode ? paymentDate : TODAY;
-
-    if (isManualPaymentDateMode) {
-      if (status !== 'PENDING') {
-        setValue('status', 'PENDING', { shouldValidate: true });
-      }
-      return;
+    if (!isChequePayment) {
+      setValue('chequeNumber', '', { shouldValidate: true });
+      clearErrors('chequeNumber');
     }
-
-    if (effectivePaymentDate === TODAY && status !== 'DONE') {
-      setValue('status', 'DONE', { shouldValidate: true });
-    }
-  }, [isManualPaymentDateMode, paymentDate, status, setValue]);
+  }, [isChequePayment, setValue, clearErrors]);
 
   const onSubmit = async (values: PurchaseFormValues) => {
     setSubmitting(true);
@@ -112,9 +113,14 @@ export default function AddPurchasePage() {
 
       if (!PAYMENT_DATE_REQUIRED_MODES.includes(payload.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number])) {
         payload.paymentDate = TODAY;
-        payload.status = 'DONE';
+      }
+
+      payload.status = 'PENDING';
+
+      if (payload.paymentMode === 'CHEQUE') {
+        payload.chequeNumber = payload.chequeNumber?.trim() || '';
       } else {
-        payload.status = 'PENDING';
+        payload.chequeNumber = '';
       }
 
       await axios.post('/api/purchasing', {
@@ -252,7 +258,7 @@ export default function AddPurchasePage() {
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-primary)] text-white text-xs font-bold">3</span>
             Payment
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
             <div>
               <label className={labelClass}>Payment Mode <span className="text-red-500">*</span></label>
               <select {...register('paymentMode')} className={inputClass()}>
@@ -264,6 +270,14 @@ export default function AddPurchasePage() {
                 <option value="OTHER">OTHER</option>
               </select>
             </div>
+
+            {isChequePayment && (
+              <div>
+                <label className={labelClass}>Cheque Number <span className="text-red-500">*</span></label>
+                <input type="text" {...register('chequeNumber')} className={inputClass(!!errors.chequeNumber)} placeholder="Enter cheque number" />
+                {errors.chequeNumber && <p className={errorClass}>{errors.chequeNumber.message}</p>}
+              </div>
+            )}
 
             <div>
               <label className={labelClass}>

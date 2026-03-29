@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   ShoppingCart,
-  Users,
-  Tags,
   FileText,
   CircleDollarSign,
   Store,
@@ -14,6 +12,9 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Users,
+  Tags,
   Lock,
   LogOut,
 } from "lucide-react";
@@ -23,8 +24,11 @@ import { signOut, useSession } from "next-auth/react";
 const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Purchasing", href: "/admin/purchasing", icon: ShoppingCart },
-  { name: "Suppliers", href: "/admin/suppliers", icon: Users },
-  { name: "Categories", href: "/admin/categories", icon: Tags },
+];
+
+const purchasingSubNavigation = [
+  { name: "Category", href: "/admin/categories", icon: Tags },
+  { name: "Supplier", href: "/admin/suppliers", icon: Users },
 ];
 
 const inactiveTabs = [
@@ -40,6 +44,12 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [collapsed, setCollapsed] = useState(false);
+  const [isPurchasingExpandedManual, setIsPurchasingExpandedManual] = useState(false);
+  const isPurchasingSection =
+    pathname.startsWith("/admin/purchasing") ||
+    pathname.startsWith("/admin/categories") ||
+    pathname.startsWith("/admin/suppliers");
+  const isPurchasingExpanded = isPurchasingExpandedManual || isPurchasingSection;
 
   const initials = session?.user?.name
     ? session.user.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
@@ -108,7 +118,103 @@ export default function Sidebar() {
         )}
 
         {navigation.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/admin/dashboard" && pathname.startsWith(item.href));
+          const isPurchasingParent = item.href === "/admin/purchasing";
+          const isActive = isPurchasingParent
+            ? isPurchasingSection
+            : pathname === item.href || (item.href !== "/admin/dashboard" && pathname.startsWith(item.href));
+
+          if (isPurchasingParent) {
+            return (
+              <div key={item.name} className="space-y-1">
+                <Link
+                  href={item.href}
+                  onClick={() => setIsPurchasingExpandedManual(true)}
+                  title={collapsed ? item.name : undefined}
+                  className={clsx(
+                    "group flex items-center rounded-xl transition-all duration-200 ease-in-out relative overflow-hidden",
+                    collapsed ? "px-2 py-2.5 justify-center" : "px-3 py-2.5 gap-3",
+                    isActive
+                      ? "text-white"
+                      : "text-slate-400 hover:text-white hover:bg-white/[0.07]"
+                  )}
+                  style={
+                    isActive
+                      ? {
+                          background:
+                            "linear-gradient(135deg, rgba(22,163,74,0.22) 0%, rgba(22,163,74,0.10) 100%)",
+                          border: "1px solid rgba(22,163,74,0.25)",
+                        }
+                      : {}
+                  }
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-0.5 rounded-full bg-green-400" />
+                  )}
+                  <item.icon
+                    className={clsx(
+                      "flex-shrink-0 h-4.5 w-4.5 transition-all",
+                      isActive ? "text-green-400" : "text-slate-500 group-hover:text-slate-300"
+                    )}
+                    style={{ width: 18, height: 18 }}
+                    aria-hidden="true"
+                  />
+                  {!collapsed && (
+                    <>
+                      <span className="text-sm font-semibold truncate flex-1">{item.name}</span>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setIsPurchasingExpandedManual((prev) => !prev);
+                        }}
+                        className={clsx(
+                          "h-6 w-6 rounded-md flex items-center justify-center transition-colors",
+                          isActive ? "text-green-300 hover:bg-white/10" : "text-slate-500 hover:bg-white/10"
+                        )}
+                        aria-label="Toggle purchasing menu"
+                      >
+                        <ChevronDown
+                          className={clsx(
+                            "h-4 w-4 transition-transform duration-200",
+                            isPurchasingExpanded ? "rotate-180" : "rotate-0"
+                          )}
+                        />
+                      </button>
+                    </>
+                  )}
+                </Link>
+
+                {!collapsed && isPurchasingExpanded && (
+                  <div className="ml-5 pl-3 border-l border-white/10 space-y-1.5 animate-fade-in">
+                    {purchasingSubNavigation.map((subItem) => {
+                      const isSubActive = pathname.startsWith(subItem.href);
+                      return (
+                        <Link
+                          key={subItem.name}
+                          href={subItem.href}
+                          className={clsx(
+                            "group flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-200",
+                            isSubActive
+                              ? "text-white bg-white/10 border border-white/10"
+                              : "text-slate-400 hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          <subItem.icon
+                            className={clsx(
+                              "h-3.5 w-3.5",
+                              isSubActive ? "text-green-400" : "text-slate-500 group-hover:text-slate-300"
+                            )}
+                          />
+                          <span className="font-medium">{subItem.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.name}

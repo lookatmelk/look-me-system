@@ -10,6 +10,7 @@ export interface IPurchaseRecord extends Document {
   rate: number;
   amount: number;
   paymentMode: string;
+  chequeNumber?: string;
   paymentDate?: Date;
   status: string;
   linkedOrderId?: mongoose.Types.ObjectId;
@@ -36,6 +37,13 @@ const PurchaseRecordSchema: Schema = new Schema(
       type: String, 
       required: true,
       enum: ['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'CREDIT', 'OTHER']
+    },
+    chequeNumber: {
+      type: String,
+      trim: true,
+      required: function(this: IPurchaseRecord) {
+        return this.paymentMode === 'CHEQUE';
+      },
     },
     paymentDate: { type: Date },
     status: { 

@@ -22,9 +22,18 @@ const schema = z.object({
   qty: z.number({ error: 'Enter a valid number' }).min(0.01, 'Quantity must be > 0'),
   rate: z.number({ error: 'Enter a valid number' }).min(0.01, 'Rate must be > 0'),
   paymentMode: z.enum(['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'CREDIT', 'OTHER']),
+  chequeNumber: z.string().optional().or(z.literal('')),
   paymentDate: z.string().optional().or(z.literal('')),
   status: z.enum(['PENDING', 'DONE', 'CANCELLED', 'RETURNED']),
 }).superRefine((data, ctx) => {
+  if (data.paymentMode === 'CHEQUE' && !data.chequeNumber?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Cheque Number is required for CHEQUE payments',
+      path: ['chequeNumber'],
+    });
+  }
+
   if (PAYMENT_DATE_REQUIRED_MODES.includes(data.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]) && !data.paymentDate) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -64,9 +73,8 @@ export default function EditPurchasePage({ params }: PageProps) {
   const qty = watch('qty');
   const rate = watch('rate');
   const paymentMode = watch('paymentMode');
-  const paymentDate = watch('paymentDate');
-  const status = watch('status');
   const amount = (Number(qty || 0) * Number(rate || 0)).toFixed(2);
+  const isChequePayment = paymentMode === 'CHEQUE';
   const isManualPaymentDateMode = PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]);
 
   useEffect(() => {
@@ -92,6 +100,7 @@ export default function EditPurchasePage({ params }: PageProps) {
           qty: rec.qty,
           rate: rec.rate,
           paymentMode: rec.paymentMode,
+          chequeNumber: rec.chequeNumber || '',
           paymentDate: rec.paymentDate ? new Date(rec.paymentDate).toISOString().split('T')[0] : '',
           status: rec.status,
         });
@@ -116,19 +125,15 @@ export default function EditPurchasePage({ params }: PageProps) {
   }, [paymentMode, isManualPaymentDateMode, setValue, clearErrors]);
 
   useEffect(() => {
-    const effectivePaymentDate = isManualPaymentDateMode ? paymentDate : TODAY;
-
-    if (isManualPaymentDateMode) {
-      if (status !== 'PENDING') {
-        setValue('status', 'PENDING', { shouldValidate: true });
-      }
+    if (!paymentMode) {
       return;
     }
 
-    if (effectivePaymentDate === TODAY && status !== 'DONE') {
-      setValue('status', 'DONE', { shouldValidate: true });
+    if (!isChequePayment) {
+      setValue('chequeNumber', '', { shouldValidate: true });
+      clearErrors('chequeNumber');
     }
-  }, [isManualPaymentDateMode, paymentDate, status, setValue]);
+  }, [paymentMode, isChequePayment, setValue, clearErrors]);
 
   const onSubmit = async (values: PurchaseFormValues) => {
     setSubmitting(true);
@@ -138,9 +143,12 @@ export default function EditPurchasePage({ params }: PageProps) {
 
       if (!PAYMENT_DATE_REQUIRED_MODES.includes(payload.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number])) {
         payload.paymentDate = TODAY;
-        payload.status = 'DONE';
+      }
+
+      if (payload.paymentMode === 'CHEQUE') {
+        payload.chequeNumber = payload.chequeNumber?.trim() || '';
       } else {
-        payload.status = 'PENDING';
+        payload.chequeNumber = '';
       }
 
       await axios.put(`/api/purchasing/${recordId}`, {
@@ -268,7 +276,7 @@ export default function EditPurchasePage({ params }: PageProps) {
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-primary)] text-white text-xs font-bold">3</span>
             Payment
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
             <div>
               <label className={labelClass}>Payment Mode <span className="text-red-500">*</span></label>
               <select {...register('paymentMode')} className={inputClass()}>
@@ -280,6 +288,13 @@ export default function EditPurchasePage({ params }: PageProps) {
                 <option value="OTHER">OTHER</option>
               </select>
             </div>
+            {isChequePayment && (
+              <div>
+                <label className={labelClass}>Cheque Number <span className="text-red-500">*</span></label>
+                <input type="text" {...register('chequeNumber')} className={inputClass(!!errors.chequeNumber)} placeholder="Enter cheque number" />
+                {errors.chequeNumber && <p className={errorClass}>{errors.chequeNumber.message}</p>}
+              </div>
+            )}
             <div>
               <label className={labelClass}>
                 Payment Date {isManualPaymentDateMode ? <span className="text-red-500">*</span> : <span className="text-xs text-gray-400 font-normal">(auto: today)</span>}
@@ -289,7 +304,7 @@ export default function EditPurchasePage({ params }: PageProps) {
             </div>
             <div>
               <label className={labelClass}>Status <span className="text-red-500">*</span></label>
-              <select {...register('status')} className={inputClass()} disabled>
+              <select {...register('status')} className={inputClass()}>
                 <option value="PENDING">PENDING</option>
                 <option value="DONE">DONE</option>
                 <option value="CANCELLED">CANCELLED</option>

@@ -37,7 +37,8 @@
   --shadow-glow-green: 0 0 20px rgba(22, 163, 74, 0.2);
 
   /* Font */
-  --font-sans: 'Outfit', sans-serif;
+  --font-sans: var(--font-outfit), 'Outfit', sans-serif;
+  --font-mono: var(--font-outfit), 'Outfit', sans-serif;
 
   /* Radius */
   --radius-sm: 8px;
@@ -55,7 +56,7 @@
   }
 
   html {
-    font-family: 'Outfit', sans-serif;
+    font-family: var(--font-outfit), 'Outfit', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -64,6 +65,16 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     min-height: 100vh;
+    font-family: var(--font-outfit), 'Outfit', sans-serif;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  input,
+  textarea,
+  select,
+  option {
+    font-family: var(--font-outfit), 'Outfit', sans-serif;
+    font-variant-numeric: lining-nums tabular-nums;
   }
 
   /* Custom scrollbar */

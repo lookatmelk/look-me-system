@@ -102,6 +102,11 @@ function PurchaseDetailModal({ record, onClose }: { record: any; onClose: () => 
       ),
     },
     {
+      icon: <Hash className="h-4 w-4" />,
+      label: 'Cheque Number',
+      value: <span className="font-semibold text-slate-900">{record.paymentMode === 'CHEQUE' ? (record.chequeNumber || '—') : '—'}</span>,
+    },
+    {
       icon: <CheckCircle2 className="h-4 w-4" />,
       label: 'Status',
       value: (

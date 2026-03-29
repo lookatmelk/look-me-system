@@ -21,10 +21,19 @@ const purchasingSchema = z.object({
   qty: z.number().min(0.01, "Quantity must be greater than 0"),
   rate: z.number().min(0.01, "Rate must be greater than 0"),
   paymentMode: z.enum(['CHEQUE', 'CASH', 'BANK TRANSFER', 'CARD', 'CREDIT', 'OTHER']),
+  chequeNumber: z.string().optional().or(z.literal('')),
   paymentDate: z.string().optional().or(z.literal('')),
   status: z.enum(['PENDING', 'DONE', 'CANCELLED', 'RETURNED']),
   linkedOrderId: z.string().optional(),
 }).superRefine((data, ctx) => {
+  if (data.paymentMode === 'CHEQUE' && !data.chequeNumber?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Cheque Number is required for CHEQUE payments',
+      path: ['chequeNumber'],
+    });
+  }
+
   if (PAYMENT_DATE_REQUIRED_MODES.includes(data.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]) && !data.paymentDate) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -60,6 +69,7 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
       qty: 0,
       rate: 0,
       paymentMode: 'CASH',
+      chequeNumber: '',
       paymentDate: '',
       status: 'PENDING',
     }
@@ -68,9 +78,8 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
   const qty = watch('qty');
   const rate = watch('rate');
   const paymentMode = watch('paymentMode');
-  const paymentDate = watch('paymentDate');
-  const status = watch('status');
   const amount = (Number(qty || 0) * Number(rate || 0)).toFixed(2);
+  const isChequePayment = paymentMode === 'CHEQUE';
   const isManualPaymentDateMode = PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]);
 
   useEffect(() => {
@@ -87,6 +96,7 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
           qty: initialData.qty,
           rate: initialData.rate,
           paymentMode: initialData.paymentMode,
+          chequeNumber: initialData.chequeNumber || '',
           paymentDate: initialData.paymentDate ? new Date(initialData.paymentDate).toISOString().split('T')[0] : '',
           status: initialData.status,
         });
@@ -100,6 +110,7 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
           qty: 0,
           rate: 0,
           paymentMode: 'CASH',
+          chequeNumber: '',
           paymentDate: '',
           status: 'PENDING',
         });
@@ -132,32 +143,31 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
   }, [isOpen, paymentMode, isManualPaymentDateMode, setValue, clearErrors]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || !paymentMode) {
       return;
     }
 
-    const effectivePaymentDate = isManualPaymentDateMode ? paymentDate : TODAY;
-
-    if (isManualPaymentDateMode) {
-      if (status !== 'PENDING') {
-        setValue('status', 'PENDING', { shouldValidate: true });
-      }
-      return;
+    if (!isChequePayment) {
+      setValue('chequeNumber', '', { shouldValidate: true });
+      clearErrors('chequeNumber');
     }
-
-    if (effectivePaymentDate === TODAY && status !== 'DONE') {
-      setValue('status', 'DONE', { shouldValidate: true });
-    }
-  }, [isOpen, isManualPaymentDateMode, paymentDate, status, setValue]);
+  }, [isOpen, paymentMode, isChequePayment, setValue, clearErrors]);
 
   const handleFormSubmit = async (values: PurchasingFormValues) => {
     const payload = { ...values };
 
     if (!PAYMENT_DATE_REQUIRED_MODES.includes(payload.paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number])) {
       payload.paymentDate = TODAY;
-      payload.status = 'DONE';
-    } else {
+    }
+
+    if (!initialData) {
       payload.status = 'PENDING';
+    }
+
+    if (payload.paymentMode === 'CHEQUE') {
+      payload.chequeNumber = payload.chequeNumber?.trim() || '';
+    } else {
+      payload.chequeNumber = '';
     }
 
     await onSubmit(payload);
@@ -284,6 +294,14 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
               </select>
             </div>
 
+            {isChequePayment && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cheque Number <span className="text-red-500">*</span></label>
+                <input type="text" {...register('chequeNumber')} className={`mt-1 block w-full rounded-md border ${errors.chequeNumber ? 'border-red-500' : 'border-gray-300'} px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white`} placeholder="Enter cheque number" />
+                {errors.chequeNumber && <p className="mt-1 text-xs text-red-600">{errors.chequeNumber.message}</p>}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Payment Date {isManualPaymentDateMode ? <span className="text-red-500">*</span> : <span className="text-gray-500">(auto: today)</span>}
@@ -294,7 +312,7 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status <span className="text-red-500">*</span></label>
-              <select {...register('status')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white font-medium" disabled>
+              <select {...register('status')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white font-medium" disabled={!initialData}>
                 <option value="PENDING">PENDING</option>
                 <option value="DONE">DONE</option>
                 <option value="CANCELLED">CANCELLED</option>
