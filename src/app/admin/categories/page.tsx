@@ -14,6 +14,7 @@ import { Edit2, Trash2, Search, Plus, Image as ImageIcon, ChevronLeft, ChevronRi
 import { Button } from '@/components/ui/Button';
 import { CategoryDrawer } from '@/components/categories/CategoryDrawer';
 import { Toaster, showToast } from '@/components/ui/Toaster';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import Image from 'next/image';
 
 const columnHelper = createColumnHelper<any>();
@@ -25,6 +26,8 @@ export default function CategoriesPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -38,14 +41,22 @@ export default function CategoriesPage() {
 
   useEffect(() => { fetchCategories(); }, []);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete category "${name}"?`)) return;
+  const confirmDelete = (id: string, name: string) => {
+    setItemToDelete({ id, name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!itemToDelete) return;
     try {
-      await axios.delete(`/api/categories/${id}`);
-      showToast('success', `Category "${name}" has been deleted.`);
+      await axios.delete(`/api/categories/${itemToDelete.id}`);
+      showToast('success', `Category "${itemToDelete.name}" has been deleted.`);
       fetchCategories();
     } catch (err: any) {
       showToast('error', err.response?.data?.error || 'Failed to delete category.');
+    } finally {
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -112,7 +123,7 @@ export default function CategoriesPage() {
             <Edit2 className="h-4 w-4" />
           </button>
           <button
-            onClick={() => handleDelete(props.row.original._id, props.row.original.name)}
+            onClick={() => confirmDelete(props.row.original._id, props.row.original.name)}
             className="text-gray-400 hover:text-red-600 focus:outline-none transition-colors"
             title="Delete category"
           >
@@ -242,6 +253,15 @@ export default function CategoriesPage() {
         onSubmit={handleSubmit}
         initialData={editingCategory}
         isLoading={submitting}
+      />
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={executeDelete}
+        title="Delete Category"
+        message={`Are you sure you want to delete "${itemToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
       />
     </div>
   );

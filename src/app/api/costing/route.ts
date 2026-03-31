@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       query.$or = [
         { designNo: regex },
         { description: regex },
+        { purchasingDescription: regex },
         { fabric: regex },
       ];
     }
@@ -25,8 +26,8 @@ export async function GET(request: Request) {
     const size = searchParams.get('size');
     if (size) query.size = size;
 
-    const description = searchParams.get('description');
-    if (description) query.description = description;
+    const purchasingDescription = searchParams.get('purchasingDescription');
+    if (purchasingDescription) query.purchasingDescription = purchasingDescription;
 
     // Range filters — profit percentage
     const minProfit = searchParams.get('minProfit');

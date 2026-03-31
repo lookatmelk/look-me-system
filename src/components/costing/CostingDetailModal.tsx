@@ -155,8 +155,13 @@ export default function CostingDetailModal({
           />
           <DetailField
             icon={<Package className="w-4 h-4" />}
-            label="Description"
+            label="Design Description"
             value={record.description}
+          />
+          <DetailField
+            icon={<Package className="w-4 h-4" />}
+            label="Purchasing Description"
+            value={record.purchasingDescription}
           />
           <DetailField
             icon={<Ruler className="w-4 h-4" />}

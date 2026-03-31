@@ -14,6 +14,7 @@ import { Edit2, Trash2, Search, Plus, ChevronLeft, ChevronRight } from 'lucide-r
 import { Button } from '@/components/ui/Button';
 import { SupplierDrawer } from '@/components/suppliers/SupplierDrawer';
 import { Toaster, showToast } from '@/components/ui/Toaster';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 const columnHelper = createColumnHelper<any>();
 
@@ -24,6 +25,8 @@ export default function SuppliersPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const fetchSuppliers = async () => {
     setLoading(true);
@@ -37,14 +40,22 @@ export default function SuppliersPage() {
 
   useEffect(() => { fetchSuppliers(); }, []);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete supplier "${name}"?`)) return;
+  const confirmDelete = (id: string, name: string) => {
+    setItemToDelete({ id, name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!itemToDelete) return;
     try {
-      await axios.delete(`/api/suppliers/${id}`);
-      showToast('success', `"${name}" has been deleted.`);
+      await axios.delete(`/api/suppliers/${itemToDelete.id}`);
+      showToast('success', `"${itemToDelete.name}" has been deleted.`);
       fetchSuppliers();
     } catch (err: any) {
       showToast('error', err.response?.data?.error || 'Failed to delete supplier.');
+    } finally {
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -92,7 +103,7 @@ export default function SuppliersPage() {
             <Edit2 className="h-4 w-4" />
           </button>
           <button
-            onClick={() => handleDelete(props.row.original._id, props.row.original.name)}
+            onClick={() => confirmDelete(props.row.original._id, props.row.original.name)}
             className="text-gray-400 hover:text-red-600 focus:outline-none transition-colors"
             title="Delete supplier"
           >
@@ -222,6 +233,15 @@ export default function SuppliersPage() {
         onSubmit={handleSubmit}
         initialData={editingSupplier}
         isLoading={submitting}
+      />
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={executeDelete}
+        title="Delete Supplier"
+        message={`Are you sure you want to delete "${itemToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
       />
     </div>
   );

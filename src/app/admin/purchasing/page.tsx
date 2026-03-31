@@ -16,6 +16,7 @@ import { Edit2, Trash2, Search, Plus, Filter, ArrowUpDown, ChevronLeft, ChevronR
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Toaster, showToast } from '@/components/ui/Toaster';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -191,6 +192,8 @@ function PurchasingPageContent() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Count of active secondary filters (drives the badge)
   const activeFilterCount = useMemo(() => {
@@ -261,14 +264,22 @@ function PurchasingPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, supplierFilter, categoryFilter, paymentModeFilters, dateTypeFilter, startDateFilter, endDateFilter]);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete purchase record for "${name}"?`)) return;
+  const confirmDelete = (id: string, name: string) => {
+    setItemToDelete({ id, name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!itemToDelete) return;
     try {
-      await axios.delete(`/api/purchasing/${id}`);
+      await axios.delete(`/api/purchasing/${itemToDelete.id}`);
       showToast('success', 'Purchase record deleted.');
       fetchRecords();
     } catch (err: any) {
       showToast('error', err.response?.data?.error || 'Failed to delete record.');
+    } finally {
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -377,7 +388,7 @@ function PurchasingPageContent() {
             <Edit2 className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleDelete(props.row.original._id, props.row.original.description); }}
+            onClick={(e) => { e.stopPropagation(); confirmDelete(props.row.original._id, props.row.original.description); }}
             className="text-slate-400 hover:text-red-600 focus:outline-none bg-white p-1.5 rounded-lg shadow-sm border border-slate-200 hover:border-red-300 hover:shadow-md transition-all"
             title="Delete"
           >
@@ -816,6 +827,15 @@ function PurchasingPageContent() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={executeDelete}
+        title="Delete Purchase Record"
+        message={`Are you sure you want to delete the purchase record for "${itemToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+      />
     </div>
   );
 }

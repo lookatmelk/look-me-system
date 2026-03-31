@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Toaster, showToast } from '@/components/ui/Toaster';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import clsx from 'clsx';
 import { Suspense } from 'react';
 
@@ -33,7 +34,7 @@ function CostingPageContent() {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const [sizeFilter, setSizeFilter] = useState('');
-  const [descriptionFilter, setDescriptionFilter] = useState('');
+  const [purchasingDescriptionFilter, setPurchasingDescriptionFilter] = useState('');
   const [minProfitFilter, setMinProfitFilter] = useState('');
   const [maxProfitFilter, setMaxProfitFilter] = useState('');
   const [minCostFilter, setMinCostFilter] = useState('');
@@ -45,20 +46,22 @@ function CostingPageContent() {
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; designNo: string } | null>(null);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (sizeFilter) count++;
-    if (descriptionFilter) count++;
+    if (purchasingDescriptionFilter) count++;
     if (minProfitFilter || maxProfitFilter) count++;
     if (minCostFilter || maxCostFilter) count++;
     if (minSellingPriceFilter || maxSellingPriceFilter) count++;
     return count;
-  }, [sizeFilter, descriptionFilter, minProfitFilter, maxProfitFilter, minCostFilter, maxCostFilter, minSellingPriceFilter, maxSellingPriceFilter]);
+  }, [sizeFilter, purchasingDescriptionFilter, minProfitFilter, maxProfitFilter, minCostFilter, maxCostFilter, minSellingPriceFilter, maxSellingPriceFilter]);
 
   const resetAllFilters = () => {
     setSizeFilter('');
-    setDescriptionFilter('');
+    setPurchasingDescriptionFilter('');
     setMinProfitFilter('');
     setMaxProfitFilter('');
     setMinCostFilter('');
@@ -72,7 +75,7 @@ function CostingPageContent() {
     try {
       const params = new URLSearchParams();
       if (sizeFilter) params.append('size', sizeFilter);
-      if (descriptionFilter) params.append('description', descriptionFilter);
+      if (purchasingDescriptionFilter) params.append('purchasingDescription', purchasingDescriptionFilter);
       if (minProfitFilter) params.append('minProfit', minProfitFilter);
       if (maxProfitFilter) params.append('maxProfit', maxProfitFilter);
       if (minCostFilter) params.append('minTotalCost', minCostFilter);
@@ -104,19 +107,26 @@ function CostingPageContent() {
 
   useEffect(() => {
     fetchRecords();
-  }, [sizeFilter, descriptionFilter, minProfitFilter, maxProfitFilter, minCostFilter, maxCostFilter, minSellingPriceFilter, maxSellingPriceFilter]);
+  }, [sizeFilter, purchasingDescriptionFilter, minProfitFilter, maxProfitFilter, minCostFilter, maxCostFilter, minSellingPriceFilter, maxSellingPriceFilter]);
 
-  const handleDelete = async (id: string, designNo: string) => {
-    if (confirm(`Are you sure you want to delete costing record ${designNo}?`)) {
-      try {
-        const res = await axios.delete(`/api/costing/${id}`);
-        if (res.data.success) {
-          showToast('success', "Record deleted successfully");
-          fetchRecords();
-        }
-      } catch (error: any) {
-        showToast('error', error.response?.data?.error || "Failed to delete record");
+  const confirmDelete = (id: string, designNo: string) => {
+    setItemToDelete({ id, designNo });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      const res = await axios.delete(`/api/costing/${itemToDelete.id}`);
+      if (res.data.success) {
+        showToast('success', 'Record deleted successfully');
+        fetchRecords();
       }
+    } catch (error: any) {
+      showToast('error', error.response?.data?.error || 'Failed to delete record');
+    } finally {
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -133,8 +143,12 @@ function CostingPageContent() {
       cell: info => <span className="font-black text-slate-900 text-sm">{info.getValue()}</span>,
     }),
     columnHelper.accessor('description', {
-      header: () => <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Description</span>,
-      cell: info => <span className="font-semibold text-slate-900 text-sm max-w-[160px] truncate block">{info.getValue()}</span>,
+      header: () => <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Design Desc</span>,
+      cell: info => <span className="font-semibold text-slate-900 text-sm max-w-[120px] truncate block" title={info.getValue()}>{info.getValue()}</span>,
+    }),
+    columnHelper.accessor('purchasingDescription', {
+      header: () => <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Purchasing Desc</span>,
+      cell: info => <span className="font-semibold text-slate-900 text-sm max-w-[120px] truncate block" title={info.getValue()}>{info.getValue()}</span>,
     }),
     columnHelper.accessor('size', {
       header: () => <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Size</span>,
@@ -231,7 +245,7 @@ function CostingPageContent() {
             <Edit2 className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleDelete(props.row.original._id, props.row.original.designNo); }}
+            onClick={(e) => { e.stopPropagation(); confirmDelete(props.row.original._id, props.row.original.designNo); }}
             className="text-slate-400 hover:text-red-600 bg-white p-1.5 rounded-lg shadow-sm border border-slate-200 hover:border-red-300 hover:shadow-md transition-all cursor-pointer"
             title="Delete"
           >
@@ -316,7 +330,7 @@ function CostingPageContent() {
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
               className="block w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 bg-slate-50 focus:bg-white transition-all outline-none"
-              placeholder="Search design no, description, fabric..."
+              placeholder="Search design no, description, purchasing desc, fabric..."
             />
           </div>
 
@@ -494,8 +508,8 @@ function CostingPageContent() {
                 </label>
                 <div className="relative">
                   <select
-                    value={descriptionFilter}
-                    onChange={(e) => setDescriptionFilter(e.target.value)}
+                    value={purchasingDescriptionFilter}
+                    onChange={(e) => setPurchasingDescriptionFilter(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-700 focus:ring-1 focus:ring-green-500 focus:border-green-500 appearance-none shadow-sm outline-none cursor-pointer"
                   >
                     <option value="">All Descriptions</option>
@@ -626,7 +640,16 @@ function CostingPageContent() {
           onClose={() => setSelectedRecord(null)}
         />
       )}
-      
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={executeDelete}
+        title="Delete Costing Record"
+        message={`Are you sure you want to delete costing record "${itemToDelete?.designNo}"? This action cannot be undone.`}
+        confirmText="Delete"
+      />
+
       <Toaster />
     </div>
   );

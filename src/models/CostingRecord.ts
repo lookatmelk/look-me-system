@@ -4,6 +4,7 @@ export interface ICostingRecord extends Document {
   // ─── Identity ───
   designNo: string;
   description: string;
+  purchasingDescription: string;
   size: string;
   
   // ─── Fabric ───
@@ -44,7 +45,12 @@ const CostingRecordSchema: Schema = new Schema(
     },
     description: {
       type: String,
-      required: [true, 'Description is required'],
+      required: [true, 'Design description is required'],
+      trim: true,
+    },
+    purchasingDescription: {
+      type: String,
+      required: [true, 'Purchasing description is required'],
       trim: true,
     },
     size: {
@@ -146,6 +152,7 @@ const CostingRecordSchema: Schema = new Schema(
 // Compound index for common queries
 CostingRecordSchema.index({ designNo: 1 });
 CostingRecordSchema.index({ description: 1 });
+CostingRecordSchema.index({ purchasingDescription: 1 });
 CostingRecordSchema.index({ size: 1 });
 CostingRecordSchema.index({ createdAt: -1 });
 

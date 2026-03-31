@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/Button";
 
 const costingSchema = z.object({
   designNo: z.string().min(1, "Design number is required"),
-  description: z.string().min(1, "Description is required"),
+  description: z.string().min(1, "Design description is required"),
+  purchasingDescription: z.string().min(1, "Purchasing description is required"),
   size: z.enum(["S", "M", "L", "XL", "2XL", "FREE"]),
   fabric: z.string().min(1, "Fabric is automatically mapped but cannot be empty"),
   fabricPrice: z.number().min(0, "Fabric price cannot be negative"),
@@ -29,6 +30,7 @@ type CostingFormValues = z.infer<typeof costingSchema>;
 const defaultValues: CostingFormValues = {
   designNo: "",
   description: "",
+  purchasingDescription: "",
   size: "M",
   fabric: "",
   fabricPrice: 0,
@@ -80,7 +82,7 @@ export default function CostingForm({
     }
   }, [initialData, reset]);
 
-  const watchDescription = watch("description");
+  const watchPurchasingDescription = watch("purchasingDescription");
   const watchFabricPrice = watch("fabricPrice");
   const watchFabricConsumption = watch("fabricConsumption");
   const watchPrintBelt = watch("printBelt");
@@ -90,17 +92,17 @@ export default function CostingForm({
   const watchAccessoriesCost = watch("accessoriesCost");
   const watchSellingPrice = watch("sellingPrice");
 
-  // Auto-map fabric from description
+  // Auto-map fabric from purchasing description
   useEffect(() => {
-    if (watchDescription) {
-      const match = purchasingDescriptions.find((d) => d.description === watchDescription);
+    if (watchPurchasingDescription) {
+      const match = purchasingDescriptions.find((d) => d.description === watchPurchasingDescription);
       if (match) {
         setValue("fabric", match.fabric, { shouldValidate: true });
       }
     } else {
       setValue("fabric", "", { shouldValidate: true });
     }
-  }, [watchDescription, purchasingDescriptions, setValue]);
+  }, [watchPurchasingDescription, purchasingDescriptions, setValue]);
 
   const fabricCostCalc = Number(
     (Number(watchFabricPrice || 0) * Number(watchFabricConsumption || 0)).toFixed(2)
@@ -129,7 +131,7 @@ export default function CostingForm({
     e.stopPropagation();
     let isValid = false;
     if (step === 1) {
-      isValid = await trigger(["designNo", "description", "size", "fabric"]);
+      isValid = await trigger(["designNo", "description", "purchasingDescription", "size", "fabric"]);
     } else if (step === 2) {
       isValid = await trigger([
         "fabricPrice",
@@ -238,12 +240,27 @@ export default function CostingForm({
 
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Design Description <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    {...register("description")}
+                    placeholder="e.g. Blue Striped Summer Dress"
+                    className={inputClass(!!errors.description)}
+                  />
+                  {errors.description && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">{errors.description.message}</p>
+                  )}
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
                     Purchasing Description <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <select
-                      {...register("description")}
-                      className={inputClass(!!errors.description)}
+                      {...register("purchasingDescription")}
+                      className={inputClass(!!errors.purchasingDescription)}
                     >
                       <option value="">Select a purchasing description...</option>
                       {purchasingDescriptions.map((d) => (
@@ -253,8 +270,8 @@ export default function CostingForm({
                       ))}
                     </select>
                   </div>
-                  {errors.description && (
-                    <p className="mt-1 text-xs font-semibold text-red-600">{errors.description.message}</p>
+                  {errors.purchasingDescription && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">{errors.purchasingDescription.message}</p>
                   )}
                 </div>
 
