@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ShoppingCart,
   FileText,
@@ -24,6 +24,7 @@ import { signOut, useSession } from "next-auth/react";
 const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Purchasing", href: "/admin/purchasing", icon: ShoppingCart },
+  { name: "Costing", href: "/admin/costing", icon: CircleDollarSign },
 ];
 
 const purchasingSubNavigation = [
@@ -33,7 +34,6 @@ const purchasingSubNavigation = [
 
 const inactiveTabs = [
   { name: "Orders", icon: FileText },
-  { name: "Costing", icon: CircleDollarSign },
   { name: "Shop 1", icon: Store },
   { name: "Shop 2", icon: Store },
   { name: "Shop 3", icon: Store },
@@ -44,12 +44,17 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [collapsed, setCollapsed] = useState(false);
-  const [isPurchasingExpandedManual, setIsPurchasingExpandedManual] = useState(false);
+  const [isPurchasingExpandedManual, setIsPurchasingExpandedManual] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setIsPurchasingExpandedManual(null);
+  }, [pathname]);
+
   const isPurchasingSection =
     pathname.startsWith("/admin/purchasing") ||
     pathname.startsWith("/admin/categories") ||
     pathname.startsWith("/admin/suppliers");
-  const isPurchasingExpanded = isPurchasingExpandedManual || isPurchasingSection;
+  const isPurchasingExpanded = isPurchasingExpandedManual !== null ? isPurchasingExpandedManual : isPurchasingSection;
 
   const initials = session?.user?.name
     ? session.user.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
@@ -165,7 +170,8 @@ export default function Sidebar() {
                         type="button"
                         onClick={(event) => {
                           event.preventDefault();
-                          setIsPurchasingExpandedManual((prev) => !prev);
+                          event.stopPropagation();
+                          setIsPurchasingExpandedManual(!isPurchasingExpanded);
                         }}
                         className={clsx(
                           "h-6 w-6 rounded-md flex items-center justify-center transition-colors",
