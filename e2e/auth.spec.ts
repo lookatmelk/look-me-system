@@ -1,13 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-// Helper to log in programmatically
-async function login(page: any) {
-  await page.goto('/login');
-  await page.fill('#email', 'admin@lookatme.com');
-  await page.fill('#password', 'Admin@1234');
-  await page.click('#login-submit-btn');
-  await page.waitForURL('**/admin/**');
-}
+import { loginAsAdmin } from './helpers';
 
 test.describe('Authentication', () => {
   test('login page renders correctly', async ({ page }) => {
@@ -27,7 +19,7 @@ test.describe('Authentication', () => {
   });
 
   test('successful login redirects to admin', async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await expect(page).toHaveURL(/\/admin\//);
   });
 
@@ -37,7 +29,10 @@ test.describe('Authentication', () => {
   });
 
   test('unauthenticated access to API returns 401', async ({ page }) => {
+    const start = Date.now();
     const response = await page.request.get('/api/suppliers');
+    const durationMs = Date.now() - start;
     expect(response.status()).toBe(401);
+    expect(durationMs).toBeLessThan(1500);
   });
 });

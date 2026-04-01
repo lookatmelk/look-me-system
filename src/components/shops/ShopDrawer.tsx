@@ -102,6 +102,7 @@ export default function ShopDrawer({ isOpen, onClose, shop, onSave }: ShopDrawer
         if (res.data.success) {
           showToast('success', 'Shop updated successfully');
           onSave();
+          window.dispatchEvent(new Event('shops:updated'));
           onClose();
         }
       } else {
@@ -110,6 +111,7 @@ export default function ShopDrawer({ isOpen, onClose, shop, onSave }: ShopDrawer
         if (res.data.success) {
           showToast('success', 'Shop created successfully');
           onSave();
+          window.dispatchEvent(new Event('shops:updated'));
           onClose();
         }
       }

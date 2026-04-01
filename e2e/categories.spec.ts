@@ -1,16 +1,9 @@
 import { test, expect } from '@playwright/test';
-
-async function login(page: any) {
-  await page.goto('/login');
-  await page.fill('#email', 'admin@lookatme.com');
-  await page.fill('#password', 'Admin@1234');
-  await page.click('#login-submit-btn');
-  await page.waitForURL('**/admin/**');
-}
+import { loginAsAdmin, uniqueValue } from './helpers';
 
 test.describe('Categories Module', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto('/admin/categories');
   });
 
@@ -39,5 +32,18 @@ test.describe('Categories Module', () => {
     await page.click('#add-category-btn');
     await expect(page.locator('#category-form input[name="name"]')).toBeVisible();
     await expect(page.locator('#category-form textarea[name="description"]')).toBeVisible();
+  });
+
+  test('category form validates required name', async ({ page }) => {
+    await page.click('#add-category-btn');
+    await page.locator('#category-form button[type="submit"]').click();
+    await expect(page.locator('text=Name must be at least 2 characters')).toBeVisible();
+  });
+
+  test('search field accepts user input', async ({ page }) => {
+    const value = uniqueValue('cat-search');
+    const input = page.locator('input[placeholder="Search categories by name..."]');
+    await input.fill(value);
+    await expect(input).toHaveValue(value);
   });
 });

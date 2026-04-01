@@ -1,17 +1,9 @@
 import { test, expect } from '@playwright/test';
-
-// Login helper
-async function login(page: any) {
-  await page.goto('/login');
-  await page.fill('#email', 'admin@lookatme.com');
-  await page.fill('#password', 'Admin@1234');
-  await page.click('#login-submit-btn');
-  await page.waitForURL('**/admin/**');
-}
+import { loginAsAdmin, uniqueValue } from './helpers';
 
 test.describe('Suppliers Module', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto('/admin/suppliers');
   });
 
@@ -61,5 +53,12 @@ test.describe('Suppliers Module', () => {
     await page.click('#add-supplier-btn');
     await page.locator('#supplier-form button[type="submit"]').click();
     await expect(page.locator('text=Name must be at least')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('supplier search accepts typed value', async ({ page }) => {
+    const value = uniqueValue('sup-search');
+    const input = page.locator('input[placeholder="Search suppliers by name, phone..."]');
+    await input.fill(value);
+    await expect(input).toHaveValue(value);
   });
 });

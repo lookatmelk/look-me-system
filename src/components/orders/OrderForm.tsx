@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useForm, useFieldArray, UseFormReturn } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Store, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Store, CheckCircle2, AlertCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import axios from 'axios';
+import { Button } from '@/components/ui/Button';
 
 // ─── Zod Schema ───
 
@@ -67,6 +68,7 @@ interface OrderFormProps {
   initialData?: any;
   availableDesigns: DesignOption[];
   isLoading?: boolean;
+  onCancel: () => void;
   onSubmit: (data: OrderFormValues) => Promise<void>;
 }
 
@@ -89,6 +91,7 @@ export default function OrderForm({
   initialData,
   availableDesigns,
   isLoading = false,
+  onCancel,
   onSubmit,
 }: OrderFormProps) {
   const [step, setStep] = useState(1);
@@ -238,7 +241,9 @@ export default function OrderForm({
     return fieldsValid && sizesValid;
   };
 
-  const nextStep = async () => {
+  const nextStep = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (step === 1) {
       const isValid = await validateStep1();
       if (isValid) setStep(2);
@@ -251,6 +256,11 @@ export default function OrderForm({
   const prevStep = () => {
     if (step > 1) setStep(step - 1);
   };
+
+  const inputClass = (error?: boolean) =>
+    `mt-1 block w-full rounded-lg border ${
+      error ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'
+    } px-3 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:bg-white transition-all min-h-[42px]`;
 
   const onFormSubmit = async (data: OrderFormValues) => {
     setIsSubmitting(true);
@@ -273,15 +283,17 @@ export default function OrderForm({
 
   if (shopsLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+      <div className="flex items-center justify-center p-12 bg-white rounded-2xl border border-slate-100">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50">
+          <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+        </div>
       </div>
     );
   }
 
   if (activeShops.length === 0) {
     return (
-      <div className="bg-orange-50 text-orange-800 p-6 rounded-2xl border border-orange-200 text-center">
+      <div className="bg-orange-50 text-orange-800 p-8 rounded-2xl border border-orange-200 text-center">
         <Store className="h-10 w-10 text-orange-400 mx-auto mb-3" />
         <h3 className="font-bold text-lg">No Active Shops</h3>
         <p className="mt-1 mb-4 text-sm text-orange-700/80">You need to have at least one active shop to create an order.</p>
@@ -293,293 +305,320 @@ export default function OrderForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onFormSubmit)} className="w-full">
-      {/* Stepper Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between relative">
-          <div className="absolute left-0 top-1/2 w-full h-0.5 bg-gray-200 -z-10 transform -translate-y-1/2" />
-          <div
-            className="absolute left-0 top-1/2 h-0.5 bg-[var(--color-primary)] transition-all duration-300 -z-10 transform -translate-y-1/2"
-            style={{ width: `${((step - 1) / 2) * 100}%` }}
-          />
-          {[1, 2, 3].map((num) => (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative pb-20 max-w-4xl mx-auto">
+      <div className="p-6 sm:p-8">
+        {/* Stepper Header */}
+        <div className="mb-10 max-w-2xl mx-auto">
+          <div className="flex items-center justify-between relative">
+            <div className="absolute left-0 top-1/2 w-full h-0.5 bg-slate-100 -z-10 transform -translate-y-1/2" />
             <div
-              key={num}
-              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 bg-white font-semibold text-sm transition-colors z-10 ${
-                step >= num
-                  ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                  : 'border-gray-300 text-gray-400'
-              }`}
-            >
-              {step > num ? <CheckCircle2 className="w-5 h-5" /> : num}
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-between mt-2 text-xs font-medium text-gray-500">
-          <span>Design Selection</span>
-          <span>Shop Allocations</span>
-          <span>Review</span>
-        </div>
-      </div>
-
-      {/* Step 1: Design Selection */}
-      {step === 1 && (
-        <div className="space-y-5 animate-in slide-in-from-right-4 fade-in duration-300">
-          {/* Design Number Dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Design Number <span className="text-red-500">*</span>
-              <span className="text-xs text-slate-400 ml-1">(from costing)</span>
-            </label>
-            <select
-              {...register('costingId')}
-              onChange={(e) => handleDesignChange(e.target.value)}
-              className={`mt-1 block w-full rounded-md border ${
-                errors.costingId ? 'border-red-500' : 'border-gray-300'
-              } px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white`}
-            >
-              <option value="">Select a design number...</option>
-              {availableDesigns.map((design) => (
-                <option key={design._id} value={design._id}>
-                  {design.designNo} — {design.description} (LKR {design.sellingPrice.toLocaleString()})
-                </option>
-              ))}
-            </select>
-            {errors.costingId && (
-              <p className="mt-1 text-xs text-red-600">{errors.costingId.message}</p>
-            )}
-          </div>
-
-          {/* Auto-filled Design Info Card */}
-          {selectedDesign && (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 space-y-2 animate-fade-in">
-              <p className="text-xs font-bold text-green-700 uppercase tracking-wider">Selected Design</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <span className="text-[10px] text-slate-500 font-medium block">Description</span>
-                  <span className="text-sm font-bold text-slate-900">{selectedDesign.description}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-medium block">Size</span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
-                    {selectedDesign.size}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-medium block">Selling Price</span>
-                  <span className="text-sm font-black text-green-700 font-mono">
-                    LKR {selectedDesign.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-medium block">Total Cost</span>
-                  <span className="text-sm font-black text-red-700 font-mono">
-                    LKR {selectedDesign.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Order Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Order Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              {...register('orderDate')}
-              className={`mt-1 block w-full rounded-md border ${
-                errors.orderDate ? 'border-red-500' : 'border-gray-300'
-              } px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white`}
+              className="absolute left-0 top-1/2 h-0.5 bg-green-500 transition-all duration-300 -z-10 transform -translate-y-1/2"
+              style={{ width: `${((step - 1) / 2) * 100}%` }}
             />
-            {errors.orderDate && (
-              <p className="mt-1 text-xs text-red-600">{errors.orderDate.message}</p>
-            )}
+            {[1, 2, 3].map((num) => (
+              <div
+                key={num}
+                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 bg-white font-bold text-base transition-colors ${
+                  step >= num
+                    ? 'border-green-500 text-green-600 shadow-md shadow-green-100'
+                    : 'border-slate-200 text-slate-400'
+                }`}
+              >
+                {step > num ? <CheckCircle2 className="w-6 h-6 fill-current text-green-500" /> : num}
+              </div>
+            ))}
           </div>
-
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Status <span className="text-red-500">*</span>
-            </label>
-            <select
-              {...register('status')}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes <span className="text-xs text-slate-400 ml-1">(optional)</span>
-            </label>
-            <textarea
-              {...register('notes')}
-              rows={3}
-              placeholder="Any additional notes about this order..."
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 sm:text-sm bg-gray-50 focus:bg-white resize-none"
-            />
-            {errors.notes && (
-              <p className="mt-1 text-xs text-red-600">{errors.notes.message}</p>
-            )}
+          <div className="flex justify-between mt-3 text-xs sm:text-sm font-semibold text-slate-500">
+            <span className={step >= 1 ? 'text-slate-800' : ''}>Design Selection</span>
+            <span className={step >= 2 ? 'text-slate-800' : ''}>Shop Allocations</span>
+            <span className={step >= 3 ? 'text-slate-800' : ''}>Review</span>
           </div>
         </div>
-      )}
 
-      {/* Step 2: Shop Allocations */}
-      {step === 2 && (
-        <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-          {/* Dynamic Shop Sections */}
-          {fields.map((field, index) => {
-             // extract UI field `_color` directly from field since we inserted it
-            const shopColorStr = (field as any)._color || 'blue';
-            return (
-              <ShopAllocationSection
-                key={field.id}
-                index={index}
-                shopName={field.shopName}
-                shopColor={shopColorStr}
-                register={register}
-                watch={watch}
-                errors={errors}
-                toggleSize={toggleSize}
-              />
-            )
-          })}
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (step === 3) {
+              handleSubmit(onFormSubmit)(e);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+              e.preventDefault();
+            }
+          }}
+        >
 
-          {/* Live Design Total */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 flex items-center justify-between">
-            <span className="text-xs font-bold text-green-700 uppercase tracking-wider">Design Total</span>
-            <span className="text-2xl font-black text-green-700 font-mono">
-              {designTotalCalc.toLocaleString()}
-            </span>
-          </div>
-
-          {/* Cross-field error */}
-          {errors.shopAllocations?.type === 'manual' && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>{errors.shopAllocations.message}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Step 3: Review & Confirm */}
-      {step === 3 && (
-        <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
-          {/* Design Summary */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Order Summary</p>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+          {/* Step 1: Design Selection */}
+          {step === 1 && (
+            <div className="space-y-6 animate-in fade-in duration-300">
               <div>
-                <span className="text-slate-500">Design No</span>
-                <p className="font-bold text-slate-900">{selectedDesign?.designNo}</p>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Design Number <span className="text-red-500">*</span>
+                  <span className="text-xs text-slate-400 ml-1">(from costing)</span>
+                </label>
+                <select
+                  {...register('costingId')}
+                  onChange={(e) => handleDesignChange(e.target.value)}
+                  className={inputClass(!!errors.costingId)}
+                >
+                  <option value="">Select a design number...</option>
+                  {availableDesigns.map((design) => (
+                    <option key={design._id} value={design._id}>
+                      {design.designNo} - {design.description} (LKR {design.sellingPrice.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+                {errors.costingId && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">{errors.costingId.message}</p>
+                )}
               </div>
-              <div>
-                <span className="text-slate-500">Description</span>
-                <p className="font-bold text-slate-900">{selectedDesign?.description}</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Shop Breakdown */}
-          <div className="space-y-2">
-            {allocationsWatch.map((alloc: any, i) => {
-              const qty = alloc.qty || 0;
-              const sizes = alloc.sizes || [];
-              const colorStr = alloc._color || 'blue';
-              if (qty === 0) return null;
-
-              return (
-                <div key={alloc.shopId} className="flex justify-between items-center px-4 py-2.5 rounded-lg bg-white border border-slate-100">
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">{alloc.shopName}</span>
-                    {sizes.length > 0 && (
-                      <p className="text-[10px] text-slate-400 mt-0.5">{sizes.join(', ')}</p>
-                    )}
+              {selectedDesign && (
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 space-y-2 animate-fade-in">
+                  <p className="text-xs font-bold text-green-700 uppercase tracking-wider">Selected Design</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-medium block">Description</span>
+                      <span className="text-sm font-bold text-slate-900">{selectedDesign.description}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-medium block">Size</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
+                        {selectedDesign.size}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-medium block">Selling Price</span>
+                      <span className="text-sm font-black text-green-700 font-mono">
+                        LKR {selectedDesign.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-medium block">Total Cost</span>
+                      <span className="text-sm font-black text-red-700 font-mono">
+                        LKR {selectedDesign.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
                   </div>
-                  <span className={clsx(
-                    'font-mono text-sm font-bold font-mono',
-                    `text-${colorStr}-700`
-                  )}>
-                    {qty.toLocaleString()}
-                  </span>
                 </div>
-              );
-            })}
-          </div>
+              )}
 
-          {/* Totals */}
-          <div className="bg-gradient-to-br from-slate-50 to-white p-4 rounded-xl border border-slate-200 space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Design Total</span>
-              <span className="text-xl font-black text-green-700 font-mono">{designTotalCalc.toLocaleString()}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Order Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    {...register('orderDate')}
+                    className={inputClass(!!errors.orderDate)}
+                  />
+                  {errors.orderDate && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">{errors.orderDate.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Status <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    {...register('status')}
+                    className={inputClass(!!errors.status)}
+                  >
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Notes <span className="text-xs text-slate-400 ml-1">(optional)</span>
+                </label>
+                <textarea
+                  {...register('notes')}
+                  rows={3}
+                  placeholder="Any additional notes about this order..."
+                  className={inputClass(!!errors.notes)}
+                />
+                {errors.notes && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">{errors.notes.message}</p>
+                )}
+              </div>
             </div>
-            <div className="border-t border-slate-100 pt-3 flex justify-between text-sm">
-              <span className="text-slate-500">Projected Revenue</span>
-              <span className="font-bold text-slate-900 font-mono">
-                LKR {projectedRevenueCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
+          )}
+
+          {/* Step 2: Shop Allocations */}
+          {step === 2 && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {fields.map((field, index) => {
+                const shopColorStr = (field as any)._color || 'blue';
+                return (
+                  <ShopAllocationSection
+                    key={field.id}
+                    index={index}
+                    shopName={field.shopName}
+                    shopColor={shopColorStr}
+                    register={register}
+                    watch={watch}
+                    errors={errors}
+                    toggleSize={toggleSize}
+                    inputClass={inputClass}
+                  />
+                );
+              })}
+
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-green-700 uppercase tracking-wider">Design Total</span>
+                <span className="text-2xl font-black text-green-700 font-mono">
+                  {designTotalCalc.toLocaleString()}
+                </span>
+              </div>
+
+              {errors.shopAllocations?.type === 'manual' && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <p>{errors.shopAllocations.message}</p>
+                </div>
+              )}
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Projected Profit</span>
-              <span className={clsx(
-                'font-bold font-mono',
-                projectedProfitCalc >= 0 ? 'text-green-700' : 'text-red-600'
-              )}>
-                LKR {projectedProfitCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
+          )}
+
+          {/* Step 3: Review & Confirm */}
+          {step === 3 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-300">
+              <div className="space-y-5">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Order Summary</p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-slate-500">Design No</span>
+                      <p className="font-bold text-slate-900">{selectedDesign?.designNo}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Description</span>
+                      <p className="font-bold text-slate-900">{selectedDesign?.description}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {allocationsWatch.map((alloc: any) => {
+                    const qty = alloc.qty || 0;
+                    const sizes = alloc.sizes || [];
+                    if (qty === 0) return null;
+
+                    return (
+                      <div key={alloc.shopId} className="flex justify-between items-center px-4 py-2.5 rounded-lg bg-white border border-slate-100">
+                        <div>
+                          <span className="text-sm font-semibold text-slate-700">{alloc.shopName}</span>
+                          {sizes.length > 0 && (
+                            <p className="text-[10px] text-slate-400 mt-0.5">{sizes.join(', ')}</p>
+                          )}
+                        </div>
+                        <span className="font-mono text-sm font-bold text-slate-800">
+                          {qty.toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium p-4 rounded-xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                  <p>Review all shop allocations carefully. Revenue and profit are calculated from the linked costing record.</p>
+                </div>
+              </div>
+
+              <div>
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 shadow-sm h-full flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Dynamic Summary</h4>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500 font-semibold">Design Total</span>
+                      <span className="font-mono font-bold text-slate-800">{designTotalCalc.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500 font-semibold">Selling Price / Unit</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        LKR {(selectedDesign?.sellingPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500 font-semibold">Cost / Unit</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        LKR {(selectedDesign?.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-4 border-t border-slate-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-black text-slate-800 uppercase text-xs tracking-wider">Projected Revenue</span>
+                      <span className="text-2xl font-black text-green-600 font-mono tracking-tight">
+                        {projectedRevenueCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white py-1.5 px-3 -mx-3 rounded-lg border border-slate-100 shadow-sm">
+                      <span className="font-black text-slate-800 uppercase text-xs tracking-wider">Projected Profit</span>
+                      <span className={clsx(
+                        'text-xl font-black font-mono tracking-tight',
+                        projectedProfitCalc >= 0 ? 'text-green-700' : 'text-red-600'
+                      )}>
+                        {projectedProfitCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-slate-200 mt-auto">
+                    <div className="flex justify-between items-center">
+                      <span className="font-black text-slate-800 uppercase text-xs tracking-wider">Profit Margin</span>
+                      <span className={clsx(
+                        'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-black tracking-wide border',
+                        (selectedDesign?.profitPercentage || 0) >= 30 && 'bg-green-50 text-green-700 border-green-200',
+                        (selectedDesign?.profitPercentage || 0) >= 20 && (selectedDesign?.profitPercentage || 0) < 30 && 'bg-amber-50 text-amber-700 border-amber-200',
+                        (selectedDesign?.profitPercentage || 0) < 20 && 'bg-red-50 text-red-700 border-red-200'
+                      )}>
+                        {(selectedDesign?.profitPercentage || 0).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+          )}
+
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 sm:px-8 py-4 flex justify-between items-center">
+            {step > 1 ? (
+              <Button type="button" variant="outline" onClick={prevStep} disabled={isLoading || isSubmitting} className="gap-2 text-slate-600 border-slate-300 font-semibold shadow-sm rounded-xl">
+                <ChevronLeft className="w-4 h-4" /> Back
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSubmitting} className="text-slate-600 border-slate-300 font-semibold shadow-sm rounded-xl">
+                Cancel
+              </Button>
+            )}
+
+            {step < 3 ? (
+              <Button type="button" onClick={nextStep} disabled={isLoading || isSubmitting} className="gap-2 rounded-xl shadow-[0_4px_14px_rgba(22,163,74,0.28)] hover:shadow-[0_6px_20px_rgba(22,163,74,0.38)] bg-gradient-to-r from-green-600 to-green-500">
+                Next Step <ChevronRight className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button type="submit" isLoading={isLoading || isSubmitting} disabled={isLoading || isSubmitting} className="gap-2 rounded-xl shadow-[0_4px_14px_rgba(22,163,74,0.28)] hover:shadow-[0_6px_20px_rgba(22,163,74,0.38)] bg-gradient-to-r from-green-600 to-green-500">
+                {(isLoading || isSubmitting) ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...</>
+                ) : (
+                  <>{initialData ? "Update Order" : "Create Order"}</>
+                )}
+              </Button>
+            )}
           </div>
-
-          {/* Info notice */}
-          <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs p-3 rounded-md flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <p>Review all shop allocations carefully. Revenue and profit are calculated from the costing record.</p>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-        {step > 1 ? (
-          <button
-            type="button"
-            onClick={prevStep}
-            className="h-10 px-6 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all"
-          >
-            Back
-          </button>
-        ) : (
-          <div />
-        )}
-
-        {step < 3 ? (
-          <button
-            type="button"
-            onClick={nextStep}
-            disabled={isLoading || isSubmitting}
-            className="h-10 px-6 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
-          >
-            Next
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={isLoading || isSubmitting}
-            className="h-10 px-6 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
-          >
-            {isSubmitting ? 'Submitting...' : initialData ? 'Update Order' : 'Create Order'}
-          </button>
-        )}
+        </form>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -593,6 +632,7 @@ function ShopAllocationSection({
   watch,
   errors,
   toggleSize,
+  inputClass,
 }: {
   index: number;
   shopName: string;
@@ -601,6 +641,7 @@ function ShopAllocationSection({
   watch: any;
   errors: any;
   toggleSize: (index: number, size: string) => void;
+  inputClass: (error?: boolean) => string;
 }) {
   const currentSizes: string[] = watch(`shopAllocations.${index}.sizes`) || [];
   const currentQty = watch(`shopAllocations.${index}.qty`) || 0;
@@ -624,13 +665,13 @@ function ShopAllocationSection({
 
       {/* Quantity */}
       <div className="mb-4">
-        <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
+        <label className="block text-xs font-semibold text-slate-600 mb-1">Quantity</label>
         <input
           type="number"
           min="0"
           step="1"
           {...register(`shopAllocations.${index}.qty`, { valueAsNumber: true })}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-right font-mono text-sm shadow-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 bg-white"
+          className={`${inputClass(!!errors?.shopAllocations?.[index]?.qty)} text-right font-mono`}
           placeholder="0"
         />
         {errors?.shopAllocations?.[index]?.qty && (

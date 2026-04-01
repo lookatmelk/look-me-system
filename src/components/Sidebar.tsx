@@ -44,23 +44,33 @@ export default function Sidebar() {
   const [isPurchasingExpandedManual, setIsPurchasingExpandedManual] = useState<boolean | null>(null);
   const [shops, setShops] = useState<any[]>([]);
 
+  const fetchShops = async () => {
+    try {
+      const res = await fetch('/api/shops?status=ACTIVE', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) setShops(data.data);
+    } catch {
+      // Silent fallback to existing state
+    }
+  };
+
   useEffect(() => {
     setIsPurchasingExpandedManual(null);
     setIsShopsExpandedManual(null);
   }, [pathname]);
 
-  // Fetch shops for dynamic sidebar
   useEffect(() => {
-    const fetchShops = async () => {
-      try {
-        const res = await fetch('/api/shops?status=ACTIVE');
-        const data = await res.json();
-        if (data.success) setShops(data.data);
-      } catch {
-        // Silent — fallback to empty
-      }
-    };
     fetchShops();
+
+    const handleShopsUpdated = () => {
+      fetchShops();
+    };
+
+    window.addEventListener('shops:updated', handleShopsUpdated);
+
+    return () => {
+      window.removeEventListener('shops:updated', handleShopsUpdated);
+    };
   }, []);
 
   const isPurchasingSection =

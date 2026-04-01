@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import OrderForm, { DesignOption } from '@/components/orders/OrderForm';
 import { showToast, Toaster } from '@/components/ui/Toaster';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function EditOrderPage() {
   const router = useRouter();
@@ -65,9 +65,11 @@ export default function EditOrderPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-2xl mx-auto py-8 px-4">
-        <div className="flex items-center justify-center h-64">
-          <div className="border-4 border-slate-200 border-t-green-500 rounded-full w-10 h-10 animate-spin" />
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto py-8 px-4">
+        <div className="flex items-center justify-center p-12 bg-white rounded-2xl border border-slate-100 h-64">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50">
+            <div className="w-6 h-6 border-2 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+          </div>
         </div>
       </div>
     );
@@ -75,32 +77,33 @@ export default function EditOrderPage() {
 
   if (!orderData) {
     return (
-      <div className="max-w-2xl mx-auto py-8 px-4">
-        <p className="text-center text-slate-500">Order not found</p>
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto py-8 px-4">
+        <div className="flex items-center justify-center p-12 bg-white rounded-2xl border border-slate-100">
+           <p className="text-center text-slate-500 font-medium">Order not found.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6 animate-fade-in pb-24">
       <Toaster />
 
-      {/* Back link */}
-      <Link
-        href="/admin/orders"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 mb-6 transition-colors"
-      >
-        <ChevronLeft className="h-4 w-4" /> Back to Orders
-      </Link>
-
-      <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-6">
-        Edit Order
-      </h1>
+      <div className="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <Link href="/admin/orders" className="text-slate-400 hover:text-green-600 transition-colors p-2 hover:bg-slate-50 rounded-xl">
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Edit Order</h1>
+          <p className="mt-0.5 text-sm text-slate-500 font-medium">Modify existing order details and shop allocations.</p>
+        </div>
+      </div>
 
       <OrderForm
         initialData={orderData}
         availableDesigns={availableDesigns}
         onSubmit={handleSubmit}
+        onCancel={() => router.push('/admin/orders')}
         isLoading={isSubmitting}
       />
     </div>

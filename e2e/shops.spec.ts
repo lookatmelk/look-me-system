@@ -1,16 +1,9 @@
 import { test, expect } from '@playwright/test';
-
-async function login(page: any) {
-  await page.goto('/login');
-  await page.fill('#email', 'admin@lookatme.com');
-  await page.fill('#password', 'Admin@1234');
-  await page.click('#login-submit-btn');
-  await page.waitForURL('**/admin/**');
-}
+import { loginAsAdmin, uniqueValue } from './helpers';
 
 test.describe('Shops Module', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto('/admin/shops');
   });
 
@@ -29,7 +22,7 @@ test.describe('Shops Module', () => {
     // Dialog should appear
     const modal = page.locator('[role="dialog"]');
     await expect(modal).toBeVisible();
-    await expect(modal.locator('h2')).toContainText('Add Shop');
+    await expect(modal.locator('h2')).toContainText('Add New Shop');
     
     // Modal should have core inputs
     await expect(modal.locator('input[name="name"]')).toBeVisible();
@@ -42,9 +35,17 @@ test.describe('Shops Module', () => {
   });
   
   test('Shop search bar works correctly', async ({ page }) => {
-    const searchInput = page.locator('input[placeholder="Search shops..."]');
+    const searchInput = page.locator('input[placeholder="Search by name, location or manager..."]');
     await expect(searchInput).toBeVisible();
-    await searchInput.fill('Kandy');
-    await expect(searchInput).toHaveValue('Kandy');
+    const value = uniqueValue('shop-search');
+    await searchInput.fill(value);
+    await expect(searchInput).toHaveValue(value);
+  });
+
+  test('shop drawer validates required name', async ({ page }) => {
+    await page.locator('button:has-text("Add Shop")').click();
+    const modal = page.locator('[role="dialog"]');
+    await modal.getByRole('button', { name: 'Create Shop' }).click();
+    await expect(modal.locator('text=Shop name is required')).toBeVisible();
   });
 });
