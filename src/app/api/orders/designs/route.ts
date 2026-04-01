@@ -8,7 +8,7 @@ export async function GET() {
 
     // Get all costing records with essential fields for the dropdown
     const designs = await CostingRecord.find({})
-      .select('designNo description sellingPrice totalCost profitPercentage size')
+      .select('designNo description sellingPrice totalCost profitPercentage sizes')
       .sort({ designNo: 1 });
 
     return NextResponse.json({

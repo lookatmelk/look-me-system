@@ -9,6 +9,7 @@ export interface IShopAllocation {
 
 export interface IOrderRecord extends Document {
   designNo: string;
+  sampleNo?: string;
   costingId: mongoose.Types.ObjectId;
   description: string;
 
@@ -77,6 +78,12 @@ const OrderRecordSchema: Schema = new Schema(
       required: [true, 'Design number is required'],
       trim: true,
     },
+    sampleNo: {
+      type: String,
+      trim: true,
+      default: '',
+      maxLength: [50, 'Sample number cannot exceed 50 characters'],
+    },
     costingId: {
       type: Schema.Types.ObjectId,
       ref: 'CostingRecord',
@@ -129,6 +136,7 @@ const OrderRecordSchema: Schema = new Schema(
 
 // ─── Indexes ───
 OrderRecordSchema.index({ designNo: 1 });
+OrderRecordSchema.index({ sampleNo: 1 });
 OrderRecordSchema.index({ costingId: 1 });
 OrderRecordSchema.index({ status: 1 });
 OrderRecordSchema.index({ orderDate: -1 });

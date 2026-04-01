@@ -39,29 +39,66 @@ export async function PUT(
     // Recalculate derived fields
     const payload = { ...body };
 
-    if (payload.fabricPrice !== undefined && payload.fabricConsumption !== undefined) {
-      payload.fabricCost = Number(
-        (payload.fabricPrice * payload.fabricConsumption).toFixed(2)
-      );
+    // ─── Calculate line item amounts ───
+
+    // Sewing: amount = rate × consumption
+    if (payload.sewingItems) {
+      payload.sewingItems = payload.sewingItems.map((item: any) => ({
+        ...item,
+        amount: Number((item.rate * item.consumption).toFixed(2)),
+      }));
     }
 
-    payload.totalCost = Number(
-      (
-        (payload.fabricCost || 0) +
-        (payload.sewingCost || 0) +
-        (payload.accessoriesCost || 0) +
-        (payload.printBelt || 0) +
-        (payload.threadLabelsPollyBags || 0) +
-        (payload.fusingElasticButtonZip || 0)
-      ).toFixed(2)
+    // Fabric: amount = (rate × consumption) + ((rate × consumption) / 100 × 5)
+    if (payload.fabricItems) {
+      payload.fabricItems = payload.fabricItems.map((item: any) => {
+        const base = item.rate * item.consumption;
+        return {
+          ...item,
+          amount: Number((base + (base / 100) * 5).toFixed(2)),
+        };
+      });
+    }
+
+    // Accessories: amount = rate × consumption
+    if (payload.accessoriesItems) {
+      payload.accessoriesItems = payload.accessoriesItems.map((item: any) => ({
+        ...item,
+        amount: Number((item.rate * item.consumption).toFixed(2)),
+      }));
+    }
+
+    // Special: amount = rate × consumption
+    if (payload.specialItems) {
+      payload.specialItems = payload.specialItems.map((item: any) => ({
+        ...item,
+        amount: Number((item.rate * item.consumption).toFixed(2)),
+      }));
+    }
+
+    // ─── Category Totals ───
+    payload.sewingCost = Number(
+      (payload.sewingItems || []).reduce((s: number, i: any) => s + (i.amount || 0), 0).toFixed(2)
+    );
+    payload.fabricCost = Number(
+      (payload.fabricItems || []).reduce((s: number, i: any) => s + (i.amount || 0), 0).toFixed(2)
+    );
+    payload.accessoriesCost = Number(
+      (payload.accessoriesItems || []).reduce((s: number, i: any) => s + (i.amount || 0), 0).toFixed(2)
+    );
+    payload.specialCost = Number(
+      (payload.specialItems || []).reduce((s: number, i: any) => s + (i.amount || 0), 0).toFixed(2)
     );
 
-    if (payload.sellingPrice !== undefined) {
-      payload.grossProfit = Number(
-        (payload.sellingPrice - payload.totalCost).toFixed(2)
-      );
-    }
+    // ─── Grand Total ───
+    payload.totalCost = Number(
+      (payload.sewingCost + payload.fabricCost + payload.accessoriesCost + payload.specialCost).toFixed(2)
+    );
 
+    // ─── Profit ───
+    if (payload.sellingPrice !== undefined) {
+      payload.grossProfit = Number((payload.sellingPrice - payload.totalCost).toFixed(2));
+    }
     if (payload.sellingPrice && payload.sellingPrice > 0) {
       payload.profitPercentage = Number(
         ((payload.grossProfit / payload.sellingPrice) * 100).toFixed(2)

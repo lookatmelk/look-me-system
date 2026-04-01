@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Store, CheckCircle2, AlertCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Store, AlertCircle, Loader2, Trash2, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import axios from 'axios';
 import { Button } from '@/components/ui/Button';
@@ -12,20 +12,22 @@ import { Button } from '@/components/ui/Button';
 // ─── Zod Schema ───
 
 const shopAllocationSchema = z.object({
-  shopId: z.string(),
+  shopId: z.string().min(1, 'Shop is required'),
   shopName: z.string(),
   qty: z.number()
     .min(0, 'Quantity cannot be negative')
     .int('Quantity must be a whole number'),
-  sizes: z.array(z.string()),
+  sizes: z.array(z.string()).min(1, 'At least one size is required'),
 });
 
 const orderSchema = z.object({
   costingId: z.string().min(1, 'Please select a design'),
+  sampleNo: z.string().max(50, 'Sample number cannot exceed 50 characters').optional().or(z.literal('')),
   orderDate: z.string().min(1, 'Order date is required'),
   status: z.enum(['PENDING', 'IN_PRODUCTION', 'DISPATCHED', 'DELIVERED', 'CANCELLED']),
   notes: z.string().max(500, 'Notes cannot exceed 500 characters').optional().or(z.literal('')),
-  shopAllocations: z.array(shopAllocationSchema),
+  shopAllocations: z.array(shopAllocationSchema)
+    .min(1, 'At least one shop allocation is required'),
 }).refine(
   (data) => {
     const total = data.shopAllocations.reduce((sum, alloc) => sum + (alloc.qty || 0), 0);
@@ -33,19 +35,6 @@ const orderSchema = z.object({
   },
   {
     message: 'At least one shop must have a quantity greater than 0',
-    path: ['shopAllocations'],
-  }
-).refine(
-  (data) => {
-    for (const alloc of data.shopAllocations) {
-      if ((alloc.qty > 0) && alloc.sizes.length === 0) return false;
-    }
-    return true;
-  },
-  {
-    message: 'Shops with quantity must have at least one size selected',
-    // We cannot map perfectly to array index here without knowing which fails in refine easily, 
-    // so we will handle the precise error presentation manually during step validation.
     path: ['shopAllocations'],
   }
 );
@@ -61,7 +50,7 @@ export interface DesignOption {
   sellingPrice: number;
   totalCost: number;
   profitPercentage: number;
-  size: string;
+  sizes: string[];
 }
 
 interface OrderFormProps {
@@ -111,8 +100,6 @@ const STATUS_OPTIONS = [
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
-// ─── Main Component ───
-
 export default function OrderForm({
   initialData,
   availableDesigns,
@@ -120,19 +107,20 @@ export default function OrderForm({
   onCancel,
   onSubmit,
 }: OrderFormProps) {
-  const [step, setStep] = useState(1);
   const [selectedDesign, setSelectedDesign] = useState<DesignOption | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeShops, setActiveShops] = useState<any[]>([]);
   const [shopsLoading, setShopsLoading] = useState(true);
+
+  // Focus refs for Enter navigation
+  const inputRefs = useRef<(HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null)[]>([]);
+  const submitBtnRef = useRef<HTMLButtonElement>(null);
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
-    trigger,
-    setError,
     clearErrors,
     control,
     formState: { errors },
@@ -140,48 +128,49 @@ export default function OrderForm({
     resolver: zodResolver(orderSchema),
     defaultValues: {
       costingId: initialData?.costingId?._id || initialData?.costingId || '',
+      sampleNo: initialData?.sampleNo || '',
       orderDate: initialData?.orderDate
         ? new Date(initialData.orderDate).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0],
       status: initialData?.status || 'PENDING',
       notes: initialData?.notes || '',
-      shopAllocations: [], // Populated dynamically once shops load
+      shopAllocations: [], 
     },
   });
 
-  const { fields, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control,
     name: 'shopAllocations',
   });
 
   const allocationsWatch = watch('shopAllocations') || [];
 
-  // Fetch active shops and sync allocations
+  // Ref registration helpers
+  let refIndex = 0;
+  const getRef = (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null) => {
+    if (el) {
+      inputRefs.current[refIndex] = el;
+    }
+    refIndex++;
+  };
+  const mergeRefs = (registerResult: any) => {
+    const { ref: registerRef, ...rest } = registerResult;
+    return {
+      ...rest,
+      ref: (el: HTMLInputElement | null) => {
+        registerRef(el);
+        getRef(el);
+      },
+    };
+  };
+
+  // Fetch active shops
   useEffect(() => {
     const fetchShops = async () => {
       try {
         const res = await axios.get('/api/shops?status=ACTIVE');
         if (res.data.success) {
-          const shops = res.data.data;
-          setActiveShops(shops);
-          
-          // Build allocations array
-          const initialAllocations = shops.map((shop: any) => {
-            // Find existing if editing
-            const existing = initialData?.shopAllocations?.find((a: any) => 
-              a.shopId.toString() === shop._id.toString()
-            );
-            return {
-              shopId: shop._id,
-              shopName: shop.name,
-              qty: existing ? existing.qty : 0,
-              sizes: existing ? existing.sizes : [],
-              // We inject these for UI rendering only, they get stripped on submit
-              _color: shop.color,
-            };
-          });
-          
-          replace(initialAllocations);
+          setActiveShops(res.data.data);
         }
       } catch {
         console.error("Failed to load shops");
@@ -190,32 +179,74 @@ export default function OrderForm({
       }
     };
     fetchShops();
-  }, [initialData, replace]);
+  }, []);
 
-  // Set selected design for edit mode
+  // Initialize allocations and design for edit mode
   useEffect(() => {
-    if (initialData?.costingId && typeof initialData.costingId === 'object') {
-      setSelectedDesign({
-        _id: initialData.costingId._id,
-        designNo: initialData.costingId.designNo,
-        description: initialData.costingId.description,
-        sellingPrice: initialData.sellingPrice,
-        totalCost: initialData.totalCost,
-        profitPercentage: initialData.profitPercentage,
-        size: initialData.costingId.size,
-      });
+    if (initialData?.costingId) {
+      const initDesignNo = initialData.costingId.designNo || initialData.designNo;
+      const foundDesign = availableDesigns.find(d => d.designNo === initDesignNo || d._id === initialData.costingId._id);
+      
+      if (foundDesign) {
+        setSelectedDesign(foundDesign);
+      } else if (typeof initialData.costingId === 'object') {
+        setSelectedDesign({
+          _id: initialData.costingId._id,
+          designNo: initialData.costingId.designNo,
+          description: initialData.costingId.description,
+          sellingPrice: initialData.sellingPrice,
+          totalCost: initialData.totalCost,
+          profitPercentage: initialData.profitPercentage,
+          sizes: initialData.costingId.sizes || [],
+        });
+      }
     }
-  }, [initialData, availableDesigns]);
 
+    if (initialData?.shopAllocations && activeShops.length > 0) {
+      const existingAllocations = initialData.shopAllocations.map((alloc: any) => ({
+        shopId: typeof alloc.shopId === 'object' ? alloc.shopId._id : alloc.shopId,
+        shopName: alloc.shopName || alloc.shopId?.name || '',
+        qty: alloc.qty || 0,
+        sizes: alloc.sizes || [],
+      }));
+      setValue('shopAllocations', existingAllocations);
+    }
+  }, [initialData, activeShops, availableDesigns, setValue]);
+
+  const allocatedShopIds = useMemo(() => new Set((watch('shopAllocations') || []).map((a: any) => a.shopId)), [allocationsWatch]);
+  const availableShopsList = useMemo(() => activeShops.filter((shop) => !allocatedShopIds.has(shop._id)), [activeShops, allocatedShopIds]);
+
+  const handleAddShop = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const shopId = e.target.value;
+    if (!shopId) return;
+
+    const shop = activeShops.find((s) => s._id === shopId);
+    if (!shop) return;
+
+    append({
+      shopId: shop._id,
+      shopName: shop.name,
+      qty: 0,
+      sizes: [],
+    });
+    e.target.value = ''; // Reset select
+  };
+
+  const handleAddAllShops = () => {
+    availableShopsList.forEach((shop) => {
+      append({
+        shopId: shop._id,
+        shopName: shop.name,
+        qty: 0,
+        sizes: [],
+      });
+    });
+  };
+
+  // Calculations
   const designTotalCalc = allocationsWatch.reduce((sum, a) => sum + (a.qty || 0), 0);
-
-  const projectedRevenueCalc = selectedDesign
-    ? Number((selectedDesign.sellingPrice * designTotalCalc).toFixed(2))
-    : 0;
-
-  const projectedProfitCalc = selectedDesign
-    ? Number(((selectedDesign.sellingPrice - selectedDesign.totalCost) * designTotalCalc).toFixed(2))
-    : 0;
+  const projectedRevenueCalc = selectedDesign ? Number((selectedDesign.sellingPrice * designTotalCalc).toFixed(2)) : 0;
+  const projectedProfitCalc = selectedDesign ? Number(((selectedDesign.sellingPrice - selectedDesign.totalCost) * designTotalCalc).toFixed(2)) : 0;
 
   const handleDesignChange = (costingId: string) => {
     const design = availableDesigns.find(d => d._id === costingId);
@@ -233,77 +264,55 @@ export default function OrderForm({
     if (errors.shopAllocations?.[index]?.sizes) clearErrors(`shopAllocations.${index}.sizes` as any);
   };
 
-  const validateStep1 = async (): Promise<boolean> => {
-    const isValid = await trigger(['costingId', 'orderDate', 'status']);
-    return isValid;
-  };
-
-  const validateStep2 = async (): Promise<boolean> => {
-    const fieldsValid = await trigger('shopAllocations');
-    
-    // Manual cross-field validations
-    const currentAllocations = watch('shopAllocations') || [];
-    const total = currentAllocations.reduce((sum, a) => sum + (a.qty || 0), 0);
-    
-    if (total === 0) {
-      setError('shopAllocations', {
-        type: 'manual',
-        message: 'At least one shop must have a quantity greater than 0',
-      });
-      return false;
-    }
-
-    let sizesValid = true;
-    currentAllocations.forEach((alloc, index) => {
-      if ((alloc.qty || 0) > 0 && (alloc.sizes || []).length === 0) {
-        setError(`shopAllocations.${index}.sizes` as any, {
-          type: 'manual',
-          message: `Select at least one size for ${alloc.shopName}`,
-        });
-        sizesValid = false;
-      }
-    });
-
-    return fieldsValid && sizesValid;
-  };
-
-  const nextStep = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (step === 1) {
-      const isValid = await validateStep1();
-      if (isValid) setStep(2);
-    } else if (step === 2) {
-      const isValid = await validateStep2();
-      if (isValid) setStep(3);
-    }
-  };
-
-  const prevStep = () => {
-    if (step > 1) setStep(step - 1);
-  };
-
   const inputClass = (error?: boolean) =>
-    `mt-1 block w-full rounded-lg border ${
-      error ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'
+    `mt-1 block w-full rounded-lg border ${error ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'
     } px-3 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:bg-white transition-all min-h-[42px]`;
 
   const onFormSubmit = async (data: OrderFormValues) => {
     setIsSubmitting(true);
     try {
-      // Strip UI-only fields like _color before submit
       const cleanedData = {
         ...data,
-        shopAllocations: data.shopAllocations.map(a => ({
-          shopId: a.shopId,
-          shopName: a.shopName,
-          qty: a.qty,
-          sizes: a.sizes,
-        }))
+        shopAllocations: data.shopAllocations
+          .filter((a) => a.qty > 0)
+          .map((a) => ({
+            shopId: a.shopId,
+            shopName: a.shopName,
+            qty: a.qty,
+            sizes: a.sizes,
+          }))
       };
       await onSubmit(cleanedData);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target as HTMLElement;
+
+    if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
+    e.preventDefault();
+
+    const currentIndex = inputRefs.current.findIndex(ref => ref === target);
+    if (currentIndex === -1) return;
+
+    const nextIndex = currentIndex + 1;
+
+    if (nextIndex < inputRefs.current.length && inputRefs.current[nextIndex]) {
+      const nextElement = inputRefs.current[nextIndex];
+      if (nextElement) {
+        nextElement.focus();
+        if (nextElement instanceof HTMLInputElement) {
+          nextElement.select();
+        }
+      }
+    } else {
+      if (submitBtnRef.current) {
+        submitBtnRef.current.focus();
+        submitBtnRef.current.click();
+      }
     }
   };
 
@@ -332,438 +341,310 @@ export default function OrderForm({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative pb-20 max-w-4xl mx-auto">
-      <div className="p-6 sm:p-8">
-        {/* Stepper Header */}
-        <div className="mb-10 max-w-2xl mx-auto">
-          <div className="flex items-center justify-between relative">
-            <div className="absolute left-0 top-1/2 w-full h-0.5 bg-slate-100 -z-10 transform -translate-y-1/2" />
-            <div
-              className="absolute left-0 top-1/2 h-0.5 bg-green-500 transition-all duration-300 -z-10 transform -translate-y-1/2"
-              style={{ width: `${((step - 1) / 2) * 100}%` }}
-            />
-            {[1, 2, 3].map((num) => (
-              <div
-                key={num}
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 bg-white font-bold text-base transition-colors ${
-                  step >= num
-                    ? 'border-green-500 text-green-600 shadow-md shadow-green-100'
-                    : 'border-slate-200 text-slate-400'
-                }`}
+      <form
+        onSubmit={handleSubmit(onFormSubmit)}
+        onKeyDown={handleFormKeyDown}
+        className="p-6 sm:p-8 space-y-8"
+      >
+        {/* Section 1: Design & Order Details */}
+        <div className="space-y-6">
+          <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
+            Design & Order Details
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">
+                Design Number <span className="text-red-500">*</span>
+              </label>
+              <select
+                {...mergeRefs(register('costingId'))}
+                onChange={(e) => handleDesignChange(e.target.value)}
+                className={inputClass(!!errors.costingId)}
               >
-                {step > num ? <CheckCircle2 className="w-6 h-6 fill-current text-green-500" /> : num}
-              </div>
-            ))}
+                <option value="">Select a design number...</option>
+                {availableDesigns.map((design) => (
+                  <option key={design._id} value={design._id}>
+                    {design.designNo} - {design.description} (LKR {design.sellingPrice.toLocaleString()})
+                  </option>
+                ))}
+              </select>
+              {errors.costingId && <p className="mt-1 text-xs font-semibold text-red-600">{errors.costingId.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">
+                Sample Number
+              </label>
+              <input
+                type="text"
+                {...mergeRefs(register('sampleNo'))}
+                placeholder="e.g. SAMPLE-001"
+                className={inputClass(!!errors.sampleNo)}
+              />
+              {errors.sampleNo && <p className="mt-1 text-xs font-semibold text-red-600">{errors.sampleNo.message}</p>}
+            </div>
           </div>
-          <div className="flex justify-between mt-3 text-xs sm:text-sm font-semibold text-slate-500">
-            <span className={step >= 1 ? 'text-slate-800' : ''}>Design Details</span>
-            <span className={step >= 2 ? 'text-slate-800' : ''}>Shop Allocations</span>
-            <span className={step >= 3 ? 'text-slate-800' : ''}>Review</span>
-          </div>
-        </div>
 
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (step === 3) {
-              handleSubmit(onFormSubmit)(e);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
-              e.preventDefault();
-            }
-          }}
-        >
-
-          {/* Step 1: Design Selection */}
-          {step === 1 && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">
-                  Design Number <span className="text-red-500">*</span>
-                  <span className="text-xs text-slate-400 ml-1">(from costing)</span>
-                </label>
-                <select
-                  {...register('costingId')}
-                  onChange={(e) => handleDesignChange(e.target.value)}
-                  className={inputClass(!!errors.costingId)}
-                >
-                  <option value="">Select a design number...</option>
-                  {availableDesigns.map((design) => (
-                    <option key={design._id} value={design._id}>
-                      {design.designNo} - {design.description} (LKR {design.sellingPrice.toLocaleString()})
-                    </option>
-                  ))}
-                </select>
-                {errors.costingId && (
-                  <p className="mt-1 text-xs font-semibold text-red-600">{errors.costingId.message}</p>
-                )}
-              </div>
-
-              {selectedDesign && (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 animate-fade-in">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected Design</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-medium block">Description</span>
-                      <span className="text-sm font-bold text-slate-900">{selectedDesign.description}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-medium block">Size</span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
-                        {selectedDesign.size}
+          {selectedDesign && (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col space-y-3 animate-in fade-in">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected Design Preview</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-medium block">Description</span>
+                  <span className="text-sm font-bold text-slate-900">{selectedDesign.description}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-medium block">Sizes</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(selectedDesign.sizes || []).map((sz: string) => (
+                      <span key={sz} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200 text-slate-700 border border-slate-300">
+                        {sz}
                       </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-medium block">Selling Price</span>
-                      <span className="text-sm font-black text-slate-900 font-mono">
-                        LKR {selectedDesign.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-medium block">Total Cost</span>
-                      <span className="text-sm font-black text-slate-900 font-mono">
-                        LKR {selectedDesign.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
+                    ))}
                   </div>
                 </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Order Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    {...register('orderDate')}
-                    className={inputClass(!!errors.orderDate)}
-                  />
-                  {errors.orderDate && (
-                    <p className="mt-1 text-xs font-semibold text-red-600">{errors.orderDate.message}</p>
-                  )}
+                  <span className="text-[10px] text-slate-500 font-medium block">Selling Price</span>
+                  <span className="text-sm font-black text-slate-900 font-mono">
+                    LKR {selectedDesign.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Status <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    {...register('status')}
-                    className={inputClass(!!errors.status)}
-                  >
-                    {STATUS_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                  <span className="text-[10px] text-slate-500 font-medium block">Total Cost</span>
+                  <span className="text-sm font-black text-slate-900 font-mono">
+                    LKR {selectedDesign.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">
-                  Notes <span className="text-xs text-slate-400 ml-1">(optional)</span>
-                </label>
-                <textarea
-                  {...register('notes')}
-                  rows={3}
-                  placeholder="Any additional notes about this order..."
-                  className={inputClass(!!errors.notes)}
-                />
-                {errors.notes && (
-                  <p className="mt-1 text-xs font-semibold text-red-600">{errors.notes.message}</p>
-                )}
               </div>
             </div>
           )}
 
-          {/* Step 2: Shop Allocations */}
-          {step === 2 && (
-            <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">
+                Order Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                {...mergeRefs(register('orderDate'))}
+                className={inputClass(!!errors.orderDate)}
+              />
+              {errors.orderDate && <p className="mt-1 text-xs font-semibold text-red-600">{errors.orderDate.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">
+                Status <span className="text-red-500">*</span>
+              </label>
+              <select
+                {...mergeRefs(register('status'))}
+                className={inputClass(!!errors.status)}
+              >
+                {STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">
+              Notes <span className="text-xs text-slate-400 ml-1">(optional)</span>
+            </label>
+            <textarea
+              {...register('notes')}
+              rows={3}
+              placeholder="Any additional notes..."
+              className={inputClass(!!errors.notes)}
+            />
+          </div>
+        </div>
+
+        {/* Section 2: Shop Allocations */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-4 justify-between border-b border-slate-100 pb-2">
+             <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
+               Shop Allocations
+             </h3>
+             <div className="flex items-center gap-3">
+               <select
+                 className="text-sm border border-slate-200 rounded-lg bg-slate-50 py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-green-500"
+                 onChange={handleAddShop}
+                 defaultValue=""
+               >
+                 <option value="" disabled>Select a shop to add...</option>
+                 {availableShopsList.map(s => (
+                   <option key={s._id} value={s._id}>{s.name}</option>
+                 ))}
+               </select>
+               <Button
+                 type="button"
+                 variant="outline"
+                 onClick={handleAddAllShops}
+                 disabled={availableShopsList.length === 0}
+                 className="text-xs py-1.5 h-auto rounded-lg font-semibold whitespace-nowrap"
+               >
+                 <Plus className="w-3.5 h-3.5 mr-1" /> Add All
+               </Button>
+             </div>
+          </div>
+
+          {fields.length === 0 ? (
+             <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+               <p className="text-sm font-semibold text-slate-500">No shops allocated.</p>
+               <p className="text-xs text-slate-400 mt-1">Use the dropdown above to add shops.</p>
+             </div>
+          ) : (
+            <div className="space-y-4">
               {fields.map((field, index) => {
-                const shopColorStr = (field as any)._color || 'blue';
+                const shopId = allocationsWatch[index]?.shopId || field.shopId;
+                const activeShopDetails = activeShops.find(s => s._id === shopId);
+                const accentColor = resolveShopColor(activeShopDetails?.color || 'slate');
+                
+                const currentSizes = allocationsWatch[index]?.sizes || [];
+                
                 return (
-                  <ShopAllocationSection
-                    key={field.id}
-                    index={index}
-                    shopName={field.shopName}
-                    shopColor={shopColorStr}
-                    register={register}
-                    watch={watch}
-                    errors={errors}
-                    toggleSize={toggleSize}
-                    inputClass={inputClass}
-                  />
+                  <div key={field.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 animate-in fade-in">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Store className="h-4 w-4 text-slate-400" />
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accentColor }} />
+                        <span className="text-sm font-bold text-slate-800">{allocationsWatch[index]?.shopName || field.shopName}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => remove(index)}
+                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                        title="Remove allocation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="md:col-span-1">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Quantity</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          {...mergeRefs(register(`shopAllocations.${index}.qty`, { valueAsNumber: true }))}
+                          className={`${inputClass(!!errors?.shopAllocations?.[index]?.qty)} text-right font-mono`}
+                          placeholder="0"
+                        />
+                        {errors?.shopAllocations?.[index]?.qty && (
+                          <p className="mt-1 text-xs text-red-600">{errors.shopAllocations[index].qty.message}</p>
+                        )}
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <label className="block text-xs font-semibold text-slate-600 mb-2 mt-2 md:mt-0">Sizes</label>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {AVAILABLE_SIZES.map(size => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => toggleSize(index, size)}
+                              className={clsx(
+                                'px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                                currentSizes.includes(size)
+                                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                              )}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {NUMERIC_SIZES.map(size => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => toggleSize(index, size)}
+                              className={clsx(
+                                'px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                                currentSizes.includes(size)
+                                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                              )}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                        {errors?.shopAllocations?.[index]?.sizes && (
+                          <p className="mt-2 text-xs text-red-600">{errors.shopAllocations[index].sizes?.message}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Design Total</span>
-                <span className="text-2xl font-black text-slate-900 font-mono">
-                  {designTotalCalc.toLocaleString()}
-                </span>
-              </div>
-
-              {errors.shopAllocations?.type === 'manual' && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-lg flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <p>{errors.shopAllocations.message}</p>
-                </div>
-              )}
             </div>
           )}
+          
+          {errors.shopAllocations?.message && (
+             <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold p-3 rounded-xl flex items-start gap-2">
+               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+               <p>{errors.shopAllocations.message}</p>
+             </div>
+          )}
+        </div>
 
-          {/* Step 3: Review & Confirm */}
-          {step === 3 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-300">
-              <div className="space-y-5">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Order Summary</p>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-slate-500">Design No</span>
-                      <p className="font-bold text-slate-900">{selectedDesign?.designNo}</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Description</span>
-                      <p className="font-bold text-slate-900">{selectedDesign?.description}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {allocationsWatch.map((alloc: any) => {
-                    const qty = alloc.qty || 0;
-                    const sizes = alloc.sizes || [];
-                    if (qty === 0) return null;
-
-                    return (
-                      <div key={alloc.shopId} className="flex justify-between items-center px-4 py-2.5 rounded-lg bg-white border border-slate-100">
-                        <div>
-                          <span className="text-sm font-semibold text-slate-700">{alloc.shopName}</span>
-                          {sizes.length > 0 && (
-                            <p className="text-[10px] text-slate-400 mt-0.5">{sizes.join(', ')}</p>
-                          )}
-                        </div>
-                        <span className="font-mono text-sm font-bold text-slate-800">
-                          {qty.toLocaleString()}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium p-4 rounded-xl flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <p>Review all shop allocations carefully. Revenue and profit are calculated from the linked costing record.</p>
-                </div>
-              </div>
-
+        {/* Section 3: Summary (Live calculations) */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-4">
+           <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Order Summary projection</h3>
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 shadow-sm h-full flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Dynamic Summary</h4>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-semibold">Design Total</span>
-                      <span className="font-mono font-bold text-slate-800">{designTotalCalc.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-semibold">Selling Price / Unit</span>
-                      <span className="font-mono font-bold text-slate-800">
-                        LKR {(selectedDesign?.sellingPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-semibold">Cost / Unit</span>
-                      <span className="font-mono font-bold text-slate-800">
-                        LKR {(selectedDesign?.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-4 border-t border-slate-200">
-                    <div className="flex justify-between items-center">
-                      <span className="font-black text-slate-800 uppercase text-xs tracking-wider">Projected Revenue</span>
-                      <span className="text-2xl font-black text-green-600 font-mono tracking-tight">
-                        {projectedRevenueCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center bg-white py-1.5 px-3 -mx-3 rounded-lg border border-slate-100 shadow-sm">
-                      <span className="font-black text-slate-800 uppercase text-xs tracking-wider">Projected Profit</span>
-                      <span className={clsx(
-                        'text-xl font-black font-mono tracking-tight',
-                        projectedProfitCalc >= 0 ? 'text-green-700' : 'text-red-600'
-                      )}>
-                        {projectedProfitCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 pt-4 border-t border-slate-200 mt-auto">
-                    <div className="flex justify-between items-center">
-                      <span className="font-black text-slate-800 uppercase text-xs tracking-wider">Profit Margin</span>
-                      <span className={clsx(
-                        'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-black tracking-wide border',
-                        (selectedDesign?.profitPercentage || 0) >= 30 && 'bg-green-50 text-green-700 border-green-200',
-                        (selectedDesign?.profitPercentage || 0) >= 20 && (selectedDesign?.profitPercentage || 0) < 30 && 'bg-amber-50 text-amber-700 border-amber-200',
-                        (selectedDesign?.profitPercentage || 0) < 20 && 'bg-red-50 text-red-700 border-red-200'
-                      )}>
-                        {(selectedDesign?.profitPercentage || 0).toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                 <span className="text-[10px] uppercase font-bold text-slate-500 block">Design Total</span>
+                 <span className="text-2xl font-black font-mono text-slate-900">{designTotalCalc.toLocaleString()}</span>
               </div>
-            </div>
-          )}
+              <div>
+                 <span className="text-[10px] uppercase font-bold text-slate-500 block">Profit Margin</span>
+                 <span className={clsx(
+                   'inline-flex items-center px-2.5 py-1 rounded-md text-sm font-black tracking-wide border mt-1',
+                   (selectedDesign?.profitPercentage || 0) >= 30 ? 'bg-green-100 text-green-700 border-green-200' :
+                   (selectedDesign?.profitPercentage || 0) >= 20 ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                   'bg-red-100 text-red-700 border-red-200'
+                 )}>
+                   {(selectedDesign?.profitPercentage || 0).toFixed(2)}%
+                 </span>
+              </div>
+              <div className="col-span-2"></div>
+           </div>
+           
+           <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Projected Revenue</span>
+                 <span className="text-xl font-black font-mono text-green-600 tracking-tight">
+                    LKR {projectedRevenueCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                 </span>
+              </div>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Projected Profit</span>
+                 <span className={clsx("text-xl font-black font-mono tracking-tight", projectedProfitCalc >= 0 ? "text-green-700" : "text-red-600")}>
+                    LKR {projectedProfitCalc.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                 </span>
+              </div>
+           </div>
+        </div>
 
-          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 sm:px-8 py-4 flex justify-between items-center">
-            {step > 1 ? (
-              <Button type="button" variant="outline" onClick={prevStep} disabled={isLoading || isSubmitting} className="gap-2 text-slate-600 border-slate-300 font-semibold shadow-sm rounded-xl">
-                <ChevronLeft className="w-4 h-4" /> Back
-              </Button>
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 sm:px-8 py-4 flex justify-between items-center z-10">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSubmitting} className="text-slate-600 border-slate-300 font-semibold shadow-sm rounded-xl">
+            Cancel
+          </Button>
+          <Button type="submit" ref={submitBtnRef} isLoading={isLoading || isSubmitting} disabled={isLoading || isSubmitting} className="gap-2 rounded-xl shadow-[0_4px_14px_rgba(22,163,74,0.28)] hover:shadow-[0_6px_20px_rgba(22,163,74,0.38)] bg-gradient-to-r from-green-600 to-green-500">
+            {(isLoading || isSubmitting) ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...</>
             ) : (
-              <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSubmitting} className="text-slate-600 border-slate-300 font-semibold shadow-sm rounded-xl">
-                Cancel
-              </Button>
+              <>{initialData ? "Update Order" : "Create Order"}</>
             )}
-
-            {step < 3 ? (
-              <Button type="button" onClick={nextStep} disabled={isLoading || isSubmitting} className="gap-2 rounded-xl shadow-[0_4px_14px_rgba(22,163,74,0.28)] hover:shadow-[0_6px_20px_rgba(22,163,74,0.38)] bg-gradient-to-r from-green-600 to-green-500">
-                Next Step <ChevronRight className="w-4 h-4" />
-              </Button>
-            ) : (
-              <Button type="submit" isLoading={isLoading || isSubmitting} disabled={isLoading || isSubmitting} className="gap-2 rounded-xl shadow-[0_4px_14px_rgba(22,163,74,0.28)] hover:shadow-[0_6px_20px_rgba(22,163,74,0.38)] bg-gradient-to-r from-green-600 to-green-500">
-                {(isLoading || isSubmitting) ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...</>
-                ) : (
-                  <>{initialData ? "Update Order" : "Create Order"}</>
-                )}
-              </Button>
-            )}
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ─── ShopAllocationSection Component ───
-
-function ShopAllocationSection({
-  index,
-  shopName,
-  shopColor,
-  register,
-  watch,
-  errors,
-  toggleSize,
-  inputClass,
-}: {
-  index: number;
-  shopName: string;
-  shopColor: string;
-  register: any;
-  watch: any;
-  errors: any;
-  toggleSize: (index: number, size: string) => void;
-  inputClass: (error?: boolean) => string;
-}) {
-  const currentSizes: string[] = watch(`shopAllocations.${index}.sizes`) || [];
-  const currentQty = watch(`shopAllocations.${index}.qty`) || 0;
-  const accentColor = resolveShopColor(shopColor);
-
-  return (
-    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Store className="h-4 w-4 text-slate-500" />
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accentColor }} />
-          <span className="text-sm font-bold text-slate-800">{shopName}</span>
+          </Button>
         </div>
-        {currentQty > 0 && (
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200">
-            {currentQty} units
-          </span>
-        )}
-      </div>
-
-      {/* Quantity */}
-      <div className="mb-4">
-        <label className="block text-xs font-semibold text-slate-600 mb-1">Quantity</label>
-        <input
-          type="number"
-          min="0"
-          step="1"
-          {...register(`shopAllocations.${index}.qty`, { valueAsNumber: true })}
-          className={`${inputClass(!!errors?.shopAllocations?.[index]?.qty)} text-right font-mono`}
-          placeholder="0"
-        />
-        {errors?.shopAllocations?.[index]?.qty && (
-          <p className="mt-1 text-xs text-red-600">{errors.shopAllocations[index].qty.message}</p>
-        )}
-      </div>
-
-      {/* Sizes (Multi-Select Chips) */}
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-2">
-          Available Sizes
-          {currentQty > 0 && currentSizes.length === 0 && (
-            <span className="text-red-500 ml-1">*</span>
-          )}
-        </label>
-
-        {/* Text Sizes */}
-        <p className="text-[10px] text-slate-400 font-medium mb-1.5">Standard</p>
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {AVAILABLE_SIZES.map(size => (
-            <button
-              key={size}
-              type="button"
-              onClick={() => toggleSize(index, size)}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
-                currentSizes.includes(size)
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-              )}
-            >
-              {size}
-            </button>
-          ))}
-        </div>
-
-        {/* Numeric Sizes */}
-        <p className="text-[10px] text-slate-400 font-medium mb-1.5">Numeric</p>
-        <div className="flex flex-wrap gap-1.5">
-          {NUMERIC_SIZES.map(size => (
-            <button
-              key={size}
-              type="button"
-              onClick={() => toggleSize(index, size)}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
-                currentSizes.includes(size)
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-              )}
-            >
-              {size}
-            </button>
-          ))}
-        </div>
-
-        {/* Selected sizes summary */}
-        {currentSizes.length > 0 && (
-          <p className="text-[10px] text-slate-500 mt-2">
-            Selected: <span className="font-semibold">{currentSizes.join(', ')}</span>
-          </p>
-        )}
-
-        {errors?.shopAllocations?.[index]?.sizes && (
-          <p className="mt-1 text-xs text-red-600">{errors.shopAllocations[index].sizes.message}</p>
-        )}
-      </div>
+      </form>
     </div>
   );
 }

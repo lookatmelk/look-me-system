@@ -11,7 +11,7 @@ export async function GET(
     await dbConnect();
     const { id } = await params;
     const record = await OrderRecord.findById(id)
-      .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage size fabric fabricPrice')
+      .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage sizes')
       .populate('shopAllocations.shopId', 'name slug color');
 
     if (!record) {
@@ -109,7 +109,7 @@ export async function PUT(
       new: true,
       runValidators: true,
     })
-    .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage size fabric')
+    .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage sizes')
     .populate('shopAllocations.shopId', 'name slug color');
 
     if (!record) {

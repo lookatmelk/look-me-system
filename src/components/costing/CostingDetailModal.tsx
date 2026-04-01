@@ -1,6 +1,6 @@
 import React from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Hash, Package, Ruler, Scissors } from "lucide-react";
+import { Hash, Package, Ruler } from "lucide-react";
 import clsx from "clsx";
 
 function DetailField({
@@ -58,6 +58,71 @@ function CostRow({
         {value?.toLocaleString(undefined, { minimumFractionDigits: 2 }) ?? "0.00"}
         {suffix}
       </span>
+    </div>
+  );
+}
+
+function CategorySection({
+  title,
+  items,
+  subtotal,
+  note,
+}: {
+  title: string;
+  items: any[];
+  subtotal: number;
+  note?: string;
+}) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</p>
+        {note && <span className="text-[10px] text-slate-400 font-medium">{note}</span>}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <th className="text-left py-1 pr-3">Type</th>
+              <th className="text-left py-1 pr-3">Description</th>
+              <th className="text-left py-1 pr-3">Unit</th>
+              <th className="text-right py-1 pr-3">Rate</th>
+              <th className="text-right py-1 pr-3">CON</th>
+              <th className="text-right py-1">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item: any, idx: number) => (
+              <tr key={idx} className="border-t border-slate-50">
+                <td className="py-1.5 pr-3 font-semibold text-slate-700">{item.type}</td>
+                <td className="py-1.5 pr-3 text-slate-600">{item.description || '—'}</td>
+                <td className="py-1.5 pr-3 text-slate-500 font-mono text-xs">{item.unit}</td>
+                <td className="py-1.5 pr-3 text-right font-mono text-slate-700">
+                  {item.rate?.toFixed(2)}
+                </td>
+                <td className="py-1.5 pr-3 text-right font-mono text-slate-700">
+                  {item.consumption?.toFixed(item.consumption < 1 ? 4 : 2)}
+                </td>
+                <td className="py-1.5 text-right font-mono font-bold text-slate-900">
+                  {item.amount?.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-slate-200">
+              <td colSpan={5} className="py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider pr-3">
+                Subtotal
+              </td>
+              <td className="py-2 text-right font-mono font-black text-slate-900">
+                {subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }
@@ -159,58 +224,57 @@ export default function CostingDetailModal({
             value={record.description}
           />
           <DetailField
-            icon={<Package className="w-4 h-4" />}
-            label="Purchasing Description"
-            value={record.purchasingDescription}
-          />
-          <DetailField
             icon={<Ruler className="w-4 h-4" />}
-            label="Size"
+            label="Sizes"
             value={
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                {record.size}
-              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {(record.sizes || []).map((size: string) => (
+                  <span
+                    key={size}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700"
+                  >
+                    {size}
+                  </span>
+                ))}
+              </div>
             }
-          />
-          <DetailField
-            icon={<Scissors className="w-4 h-4" />}
-            label="Fabric (Category)"
-            value={record.fabric}
           />
         </div>
       </div>
 
       {/* Cost Breakdown */}
+      <div className="px-6 py-5 border-b border-slate-100 space-y-6">
+        <CategorySection
+          title="Sewing"
+          items={record.sewingItems}
+          subtotal={record.sewingCost}
+        />
+        <CategorySection
+          title="Fabric"
+          items={record.fabricItems}
+          subtotal={record.fabricCost}
+          note="(incl. 5% wastage)"
+        />
+        <CategorySection
+          title="Accessories"
+          items={record.accessoriesItems}
+          subtotal={record.accessoriesCost}
+        />
+        <CategorySection
+          title="Special"
+          items={record.specialItems}
+          subtotal={record.specialCost}
+        />
+      </div>
+      
+      {/* Grand Total */}
       <div className="px-6 py-5 border-b border-slate-100">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-          Cost Breakdown
-        </p>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Grand Total</p>
         <div className="space-y-2.5">
-          <CostRow label="Fabric Price" value={record.fabricPrice} />
-          <CostRow
-            label="Fabric Consumption"
-            value={record.fabricConsumption}
-            suffix=""
-          />
-          <CostRow label="Fabric Cost" value={record.fabricCost} highlight />
-          <div className="border-t border-slate-100 my-2" />
-          <CostRow label="Print / Belt" value={record.printBelt} />
-          <CostRow
-            label="Thread / Labels / Polly Bags"
-            value={record.threadLabelsPollyBags}
-          />
-          <CostRow
-            label="Fusing / Elastic / Button / Zip"
-            value={record.fusingElasticButtonZip}
-          />
-          <CostRow
-            label="Standard Minutes Value"
-            value={record.standardMinutesValue}
-            suffix=""
-          />
-          <div className="border-t border-slate-100 my-2" />
           <CostRow label="Sewing Cost" value={record.sewingCost} />
+          <CostRow label="Fabric Cost" value={record.fabricCost} />
           <CostRow label="Accessories Cost" value={record.accessoriesCost} />
+          <CostRow label="Special Cost" value={record.specialCost} />
           <div className="border-t border-slate-200 my-2" />
           <CostRow label="TOTAL COST" value={record.totalCost} highlight bold />
         </div>

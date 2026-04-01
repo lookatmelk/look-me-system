@@ -11,18 +11,12 @@ describe('CostingRecord Model', () => {
   const validData = {
     designNo: 'D-001',
     description: 'Summer Dress',
-    purchasingDescription: 'Cotton Fabric',
-    size: 'M',
-    fabric: 'Cotton',
-    fabricPrice: 500,
-    fabricConsumption: 2, // 500 * 2 = 1000 fabric Cost
-    printBelt: 100,
-    threadLabelsPollyBags: 50,
-    fusingElasticButtonZip: 50,
-    standardMinutesValue: 10,
-    sewingCost: 200,
-    accessoriesCost: 100, // Total cost = 1000 + 100 + 50 + 50 + 200 + 100 = 1500
-    sellingPrice: 3000 // Gross profit = 1500 -> 50%
+    sizes: ['M', 'L'],
+    sewingItems: [{ type: 'Sewing', unit: 'SMV', rate: 10, consumption: 20 }], // amount: 200
+    fabricItems: [{ type: 'Cotton', unit: 'YADS', rate: 500, consumption: 2 }], // amount: 1050 (incl 5% wastage)
+    accessoriesItems: [{ type: 'Button', unit: 'NOS', rate: 50, consumption: 2 }], // amount: 100
+    specialItems: [], // amount: 0
+    sellingPrice: 3000 // Total cost = 1350. Gross profit = 1650, Profit % = 55
   };
 
   it('calculates computed fields properly on save', async () => {
@@ -30,10 +24,22 @@ describe('CostingRecord Model', () => {
     const savedCosting = await costing.save();
 
     expect(savedCosting._id).toBeDefined();
-    expect(savedCosting.fabricCost).toBe(1000);
-    expect(savedCosting.totalCost).toBe(1500);
-    expect(savedCosting.grossProfit).toBe(1500);
-    expect(savedCosting.profitPercentage).toBe(50);
+
+    // Line items amounts
+    expect(savedCosting.sewingItems[0].amount).toBe(200);
+    expect(savedCosting.fabricItems[0].amount).toBe(1050);
+    expect(savedCosting.accessoriesItems[0].amount).toBe(100);
+
+    // Category totals
+    expect(savedCosting.sewingCost).toBe(200);
+    expect(savedCosting.fabricCost).toBe(1050);
+    expect(savedCosting.accessoriesCost).toBe(100);
+    expect(savedCosting.specialCost).toBe(0);
+
+    // Grand totals
+    expect(savedCosting.totalCost).toBe(1350);
+    expect(savedCosting.grossProfit).toBe(1650);
+    expect(savedCosting.profitPercentage).toBe(55);
   });
 
   it('fails to save without required fields', async () => {
@@ -46,19 +52,7 @@ describe('CostingRecord Model', () => {
     }
     expect(error).toBeDefined();
     expect(error.errors.designNo).toBeDefined();
-    expect(error.errors.purchasingDescription).toBeDefined();
-  });
-
-  it('validates enum values for size', async () => {
-    const invalidSizeCosting = new CostingRecord({ ...validData, designNo: 'D-002', size: 'INVALID_SIZE' });
-    let error;
-    try {
-      await invalidSizeCosting.save();
-    } catch (err) {
-      error = err as any;
-    }
-    expect(error).toBeDefined();
-    expect(error.errors.size).toBeDefined();
+    expect(error.errors.sizes).toBeDefined();
   });
 
   it('fails to save duplicate design numbers', async () => {

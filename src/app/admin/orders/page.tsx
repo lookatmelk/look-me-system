@@ -47,6 +47,7 @@ export default function OrdersPage() {
   // ─── Filters (for Advanced Filter Drawer) ───
   const [statusFilter, setStatusFilter] = useState('');
   const [designNoFilter, setDesignNoFilter] = useState('');
+  const [sampleNoFilter, setSampleNoFilter] = useState('');
   const [shopFilter, setShopFilter] = useState('');
   const [minTotalFilter, setMinTotalFilter] = useState('');
   const [maxTotalFilter, setMaxTotalFilter] = useState('');
@@ -84,17 +85,19 @@ export default function OrdersPage() {
     let count = 0;
     if (statusFilter) count++;
     if (designNoFilter) count++;
+    if (sampleNoFilter) count++;
     if (shopFilter) count++;
     if (minTotalFilter || maxTotalFilter) count++;
     if (minRevenueFilter || maxRevenueFilter) count++;
     if (startDateFilter || endDateFilter) count++;
     return count;
-  }, [statusFilter, designNoFilter, shopFilter, minTotalFilter, maxTotalFilter, minRevenueFilter, maxRevenueFilter, startDateFilter, endDateFilter]);
+  }, [statusFilter, designNoFilter, sampleNoFilter, shopFilter, minTotalFilter, maxTotalFilter, minRevenueFilter, maxRevenueFilter, startDateFilter, endDateFilter]);
 
   // ─── Reset All Filters ───
   const resetAllFilters = () => {
     setStatusFilter('');
     setDesignNoFilter('');
+    setSampleNoFilter('');
     setShopFilter('');
     setMinTotalFilter('');
     setMaxTotalFilter('');
@@ -111,6 +114,7 @@ export default function OrdersPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
       if (designNoFilter) params.append('designNo', designNoFilter);
+      if (sampleNoFilter) params.append('sampleNo', sampleNoFilter);
       if (shopFilter) params.append('shopId', shopFilter);
       if (minTotalFilter) params.append('minTotal', minTotalFilter);
       if (maxTotalFilter) params.append('maxTotal', maxTotalFilter);
@@ -148,7 +152,7 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchRecords();
   }, [
-    statusFilter, designNoFilter, shopFilter,
+    statusFilter, designNoFilter, sampleNoFilter, shopFilter,
     minTotalFilter, maxTotalFilter,
     minRevenueFilter, maxRevenueFilter,
     startDateFilter, endDateFilter,
@@ -181,6 +185,21 @@ export default function OrdersPage() {
         </button>
       ),
       cell: info => <span className="font-black text-slate-900 text-sm">{info.getValue()}</span>,
+    }),
+
+    // 1b. Sample No
+    columnHelper.accessor('sampleNo', {
+      header: () => (
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          Sample No
+        </span>
+      ),
+      cell: info => {
+        const val = info.getValue();
+        return val
+          ? <span className="font-semibold text-slate-700 text-sm">{val}</span>
+          : <span className="text-slate-300">—</span>;
+      },
     }),
 
     // 2. Description
@@ -593,6 +612,20 @@ export default function OrdersPage() {
                     </svg>
                   </div>
                 </div>
+              </div>
+
+              {/* Sample Number Filter */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Sample Number
+                </label>
+                <input
+                  type="text"
+                  value={sampleNoFilter}
+                  onChange={(e) => setSampleNoFilter(e.target.value)}
+                  placeholder="Enter sample number..."
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-3 text-sm text-slate-700 focus:ring-1 focus:ring-green-500 focus:border-green-500 shadow-sm"
+                />
               </div>
 
               {/* Shop Filter */}

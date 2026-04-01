@@ -20,6 +20,7 @@ export async function GET(request: Request) {
       query.$or = [
         { designNo: regex },
         { description: regex },
+        { sampleNo: regex },
       ];
     }
 
@@ -29,6 +30,9 @@ export async function GET(request: Request) {
 
     const designNo = searchParams.get('designNo');
     if (designNo) query.designNo = designNo;
+
+    const sampleNo = searchParams.get('sampleNo');
+    if (sampleNo) query.sampleNo = sampleNo;
 
     // Shop filter — orders with qty > 0 for a given shop
     const shopId = searchParams.get('shopId');
@@ -84,7 +88,7 @@ export async function GET(request: Request) {
 
     // ─── Execute query with populate ───
     let recordsQuery = OrderRecord.find(query)
-      .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage size fabric')
+      .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage sizes')
       .populate('shopAllocations.shopId', 'name slug color')
       .sort({ [sortBy]: sortOrder });
 
@@ -180,6 +184,7 @@ export async function POST(request: Request) {
       ...body,
       shopAllocations: filteredAllocations,
       designNo: costing.designNo,
+      sampleNo: body.sampleNo || '',
       description: costing.description,
       sellingPrice: costing.sellingPrice,
       totalCost: costing.totalCost,
@@ -202,7 +207,7 @@ export async function POST(request: Request) {
 
     // Return populated doc
     const populatedRecord = await OrderRecord.findById(record._id)
-      .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage size fabric')
+      .populate('costingId', 'designNo description sellingPrice totalCost profitPercentage sizes')
       .populate('shopAllocations.shopId', 'name slug color');
 
     return NextResponse.json(

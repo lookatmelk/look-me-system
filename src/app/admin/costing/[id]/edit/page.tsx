@@ -13,7 +13,6 @@ export default function EditCostingPage() {
   const params = useParams();
   const id = params?.id as string;
   
-  const [descriptions, setDescriptions] = useState<{ description: string; fabric: string }[]>([]);
   const [initialData, setInitialData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -24,15 +23,8 @@ export default function EditCostingPage() {
 
     const init = async () => {
       try {
-        const [descRes, dataRes] = await Promise.all([
-          axios.get('/api/costing/descriptions'),
-          axios.get(`/api/costing/${id}`)
-        ]);
+        const dataRes = await axios.get(`/api/costing/${id}`);
 
-        if (descRes.data.success) {
-          setDescriptions(descRes.data.data);
-        }
-        
         if (dataRes.data.success) {
           setInitialData(dataRes.data.data);
         } else {
@@ -98,7 +90,6 @@ export default function EditCostingPage() {
           onSubmit={handleSubmit}
           onCancel={() => router.push('/admin/costing')}
           isLoading={submitting}
-          purchasingDescriptions={descriptions}
         />
       ) : null}
     </div>

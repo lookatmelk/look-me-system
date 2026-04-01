@@ -33,7 +33,7 @@ export default function OrderDetailModal({ record, onClose }: OrderDetailModalPr
     <Modal
       isOpen
       onClose={onClose}
-      title={`Order — Design #${record.designNo}`}
+      title={`Order — Design #${record.designNo}${record.sampleNo ? ` / Sample #${record.sampleNo}` : ''}`}
       subtitle={record.description}
       size="lg"
     >
@@ -68,6 +68,7 @@ export default function OrderDetailModal({ record, onClose }: OrderDetailModalPr
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Order Information</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-4">
           <DetailField icon={<Hash className="h-3.5 w-3.5" />} label="Design No" value={record.designNo} />
+          <DetailField icon={<Hash className="h-3.5 w-3.5" />} label="Sample No" value={record.sampleNo || '—'} />
           <DetailField icon={<Package className="h-3.5 w-3.5" />} label="Description" value={record.description} />
           <DetailField icon={<Calendar className="h-3.5 w-3.5" />} label="Order Date" value={
             record.orderDate ? format(new Date(record.orderDate), 'dd MMM yyyy') : '—'
