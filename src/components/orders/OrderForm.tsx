@@ -77,6 +77,32 @@ interface OrderFormProps {
 const AVAILABLE_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'FREE'];
 const NUMERIC_SIZES = ['28', '30', '32', '34', '36', '38', '40'];
 
+const SHOP_COLOR_MAP: Record<string, string> = {
+  blue: '#2563eb',
+  emerald: '#059669',
+  green: '#16a34a',
+  yellow: '#ca8a04',
+  amber: '#d97706',
+  orange: '#ea580c',
+  red: '#dc2626',
+  rose: '#e11d48',
+  pink: '#db2777',
+  fuchsia: '#c026d3',
+  purple: '#9333ea',
+  violet: '#7c3aed',
+  indigo: '#4f46e5',
+  sky: '#0284c7',
+  cyan: '#0891b2',
+  teal: '#0d9488',
+  lime: '#65a30d',
+  slate: '#334155',
+  gray: '#4b5563',
+  zinc: '#52525b',
+  neutral: '#525252',
+  stone: '#57534e',
+};
+
+const resolveShopColor = (shopColor: string) => SHOP_COLOR_MAP[shopColor] || '#16a34a';
 const STATUS_OPTIONS = [
   { value: 'PENDING', label: 'Pending' },
   { value: 'IN_PRODUCTION', label: 'In Production' },
@@ -329,7 +355,7 @@ export default function OrderForm({
             ))}
           </div>
           <div className="flex justify-between mt-3 text-xs sm:text-sm font-semibold text-slate-500">
-            <span className={step >= 1 ? 'text-slate-800' : ''}>Design Selection</span>
+            <span className={step >= 1 ? 'text-slate-800' : ''}>Design Details</span>
             <span className={step >= 2 ? 'text-slate-800' : ''}>Shop Allocations</span>
             <span className={step >= 3 ? 'text-slate-800' : ''}>Review</span>
           </div>
@@ -375,8 +401,8 @@ export default function OrderForm({
               </div>
 
               {selectedDesign && (
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 space-y-2 animate-fade-in">
-                  <p className="text-xs font-bold text-green-700 uppercase tracking-wider">Selected Design</p>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 animate-fade-in">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected Design</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-[10px] text-slate-500 font-medium block">Description</span>
@@ -390,13 +416,13 @@ export default function OrderForm({
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-500 font-medium block">Selling Price</span>
-                      <span className="text-sm font-black text-green-700 font-mono">
+                      <span className="text-sm font-black text-slate-900 font-mono">
                         LKR {selectedDesign.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-500 font-medium block">Total Cost</span>
-                      <span className="text-sm font-black text-red-700 font-mono">
+                      <span className="text-sm font-black text-slate-900 font-mono">
                         LKR {selectedDesign.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -471,9 +497,9 @@ export default function OrderForm({
                 );
               })}
 
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 flex items-center justify-between">
-                <span className="text-xs font-bold text-green-700 uppercase tracking-wider">Design Total</span>
-                <span className="text-2xl font-black text-green-700 font-mono">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Design Total</span>
+                <span className="text-2xl font-black text-slate-900 font-mono">
                   {designTotalCalc.toLocaleString()}
                 </span>
               </div>
@@ -645,19 +671,18 @@ function ShopAllocationSection({
 }) {
   const currentSizes: string[] = watch(`shopAllocations.${index}.sizes`) || [];
   const currentQty = watch(`shopAllocations.${index}.qty`) || 0;
+  const accentColor = resolveShopColor(shopColor);
 
   return (
-    <div className={clsx(`p-4 rounded-xl border-2 bg-${shopColor}-50/50 border-${shopColor}-200`)}>
+    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Store className={clsx('h-4 w-4', `text-${shopColor}-600`)} />
+          <Store className="h-4 w-4 text-slate-500" />
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accentColor }} />
           <span className="text-sm font-bold text-slate-800">{shopName}</span>
         </div>
         {currentQty > 0 && (
-          <span className={clsx(
-            'text-xs font-bold px-2 py-0.5 rounded-full',
-            `bg-${shopColor}-100 text-${shopColor}-700`
-          )}>
+          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200">
             {currentQty} units
           </span>
         )}
@@ -699,7 +724,7 @@ function ShopAllocationSection({
               className={clsx(
                 'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
                 currentSizes.includes(size)
-                  ? `bg-${shopColor}-600 text-white border-${shopColor}-600`
+                  ? 'bg-slate-900 text-white border-slate-900'
                   : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
               )}
             >
@@ -719,7 +744,7 @@ function ShopAllocationSection({
               className={clsx(
                 'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
                 currentSizes.includes(size)
-                  ? `bg-${shopColor}-600 text-white border-${shopColor}-600`
+                  ? 'bg-slate-900 text-white border-slate-900'
                   : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
               )}
             >
@@ -739,8 +764,6 @@ function ShopAllocationSection({
           <p className="mt-1 text-xs text-red-600">{errors.shopAllocations[index].sizes.message}</p>
         )}
       </div>
-      {/* Tailwind dynamic JIT catch */}
-      <span className={`hidden bg-${shopColor}-50/50 border-${shopColor}-200 text-${shopColor}-600 bg-${shopColor}-100 text-${shopColor}-700 bg-${shopColor}-600 border-${shopColor}-600`} />
     </div>
   );
 }
