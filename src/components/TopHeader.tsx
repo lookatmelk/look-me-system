@@ -15,6 +15,8 @@ const crumbMap: Record<string, string> = {
   suppliers: "Suppliers",
   categories: "Categories",
   costing: "Costing",
+  orders: "Orders",
+  shops: "Shops",
   add: "Add New",
   edit: "Edit",
 };

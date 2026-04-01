@@ -25,6 +25,7 @@ const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Purchasing", href: "/admin/purchasing", icon: ShoppingCart },
   { name: "Costing", href: "/admin/costing", icon: CircleDollarSign },
+  { name: "Orders", href: "/admin/orders", icon: FileText },
 ];
 
 const purchasingSubNavigation = [
@@ -33,10 +34,6 @@ const purchasingSubNavigation = [
 ];
 
 const inactiveTabs = [
-  { name: "Orders", icon: FileText },
-  { name: "Shop 1", icon: Store },
-  { name: "Shop 2", icon: Store },
-  { name: "Shop 3", icon: Store },
   { name: "Summary", icon: BarChart3 },
 ];
 
@@ -45,16 +42,36 @@ export default function Sidebar() {
   const { data: session } = useSession();
   const [collapsed, setCollapsed] = useState(false);
   const [isPurchasingExpandedManual, setIsPurchasingExpandedManual] = useState<boolean | null>(null);
+  const [shops, setShops] = useState<any[]>([]);
 
   useEffect(() => {
     setIsPurchasingExpandedManual(null);
+    setIsShopsExpandedManual(null);
   }, [pathname]);
+
+  // Fetch shops for dynamic sidebar
+  useEffect(() => {
+    const fetchShops = async () => {
+      try {
+        const res = await fetch('/api/shops?status=ACTIVE');
+        const data = await res.json();
+        if (data.success) setShops(data.data);
+      } catch {
+        // Silent — fallback to empty
+      }
+    };
+    fetchShops();
+  }, []);
 
   const isPurchasingSection =
     pathname.startsWith("/admin/purchasing") ||
     pathname.startsWith("/admin/categories") ||
     pathname.startsWith("/admin/suppliers");
   const isPurchasingExpanded = isPurchasingExpandedManual !== null ? isPurchasingExpandedManual : isPurchasingSection;
+
+  const isShopsSection = pathname.startsWith("/admin/shops");
+  const [isShopsExpandedManual, setIsShopsExpandedManual] = useState<boolean | null>(null);
+  const isShopsExpanded = isShopsExpandedManual !== null ? isShopsExpandedManual : isShopsSection;
 
   const initials = session?.user?.name
     ? session.user.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
@@ -261,6 +278,79 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        {/* ── SHOPS SECTION ── */}
+        {shops.length > 0 && (
+          <div className="space-y-1 mt-6">
+            {!collapsed && (
+              <p className="px-3 text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-3">
+                Shops
+              </p>
+            )}
+            {/* Shops Parent */}
+            <Link
+              href="/admin/shops"
+              onClick={() => setIsShopsExpandedManual(true)}
+              className={clsx(
+                "group flex items-center rounded-xl transition-all duration-200 ease-in-out relative overflow-hidden",
+                collapsed ? "px-2 py-2.5 justify-center" : "px-3 py-2.5 gap-3",
+                isShopsSection ? "text-white" : "text-slate-400 hover:text-white hover:bg-white/[0.07]"
+              )}
+              style={isShopsSection ? {
+                background: 'linear-gradient(135deg, rgba(22,163,74,0.22) 0%, rgba(22,163,74,0.10) 100%)',
+                border: '1px solid rgba(22,163,74,0.25)',
+              } : {}}
+            >
+              {isShopsSection && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-0.5 rounded-full bg-green-400" />
+              )}
+              <Store className={clsx(
+                "flex-shrink-0 transition-all",
+                isShopsSection ? "text-green-400" : "text-slate-500 group-hover:text-slate-300"
+              )} style={{ width: 18, height: 18 }} />
+              {!collapsed && (
+                <>
+                  <span className="text-sm font-semibold truncate flex-1">Shops</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsShopsExpandedManual(!isShopsExpanded); }}
+                    className={clsx(
+                      'h-6 w-6 rounded-md flex items-center justify-center transition-colors',
+                      isShopsSection ? 'text-green-300 hover:bg-white/10' : 'text-slate-500 hover:bg-white/10'
+                    )}
+                  >
+                    <ChevronDown className={clsx('h-4 w-4 transition-transform duration-200', isShopsExpanded ? 'rotate-180' : 'rotate-0')} />
+                  </button>
+                </>
+              )}
+            </Link>
+
+            {/* Sub-Navigation: Individual Shops */}
+            {!collapsed && isShopsExpanded && (
+              <div className="ml-5 pl-3 border-l border-white/10 space-y-1.5 animate-fade-in">
+                {shops.map(shop => {
+                  const shopHref = `/admin/shops/${shop.slug}`;
+                  const isSubActive = pathname === shopHref;
+                  return (
+                    <Link
+                      key={shop._id}
+                      href={shopHref}
+                      className={clsx(
+                        'group flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-200',
+                        isSubActive
+                          ? 'text-white bg-white/10 border border-white/10'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      )}
+                    >
+                      <Store className={clsx('h-3.5 w-3.5', isSubActive ? 'text-green-400' : 'text-slate-500 group-hover:text-slate-300')} />
+                      <span className="font-medium">{shop.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Coming soon */}
         <div className={clsx("mt-6", !collapsed && "border-t border-white/[0.06] pt-5")}>
