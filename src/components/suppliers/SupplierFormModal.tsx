@@ -6,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { useFormEnterNavigation } from '@/hooks/useFormEnterNavigation';
+import { FormKeyboardHints } from '@/components/ui/FormKeyboardHints';
 
 const supplierSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -26,6 +28,7 @@ interface SupplierFormModalProps {
 }
 
 export function SupplierFormModal({ isOpen, onClose, onSubmit, initialData, isLoading }: SupplierFormModalProps) {
+  const { handleFormKeyDown, submitBtnRef } = useFormEnterNavigation();
   const { register, handleSubmit, formState: { errors }, reset } = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierSchema),
     defaultValues: {
@@ -59,7 +62,9 @@ export function SupplierFormModal({ isOpen, onClose, onSubmit, initialData, isLo
       onClose={onClose}
       title={initialData ? "Edit Supplier" : "Add Supplier"}
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleFormKeyDown} className="space-y-4">
+        <FormKeyboardHints />
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name <span className="text-red-500">*</span></label>
           <input
@@ -114,7 +119,7 @@ export function SupplierFormModal({ isOpen, onClose, onSubmit, initialData, isLo
           <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit" isLoading={isLoading}>
+          <Button type="submit" ref={submitBtnRef} isLoading={isLoading}>
             {initialData ? "Save Changes" : "Add Supplier"}
           </Button>
         </div>

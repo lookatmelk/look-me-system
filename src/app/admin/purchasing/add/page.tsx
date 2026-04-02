@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { useFormEnterNavigation } from '@/hooks/useFormEnterNavigation';
+import { FormKeyboardHints } from '@/components/ui/FormKeyboardHints';
 
 const PAYMENT_DATE_REQUIRED_MODES = ['CHEQUE', 'CREDIT'] as const;
 const TODAY = new Date().toISOString().split('T')[0];
@@ -83,6 +85,7 @@ export default function AddPurchasePage() {
   const amount = (Number(qty || 0) * Number(rate || 0)).toFixed(2);
   const isChequePayment = paymentMode === 'CHEQUE';
   const isManualPaymentDateMode = PAYMENT_DATE_REQUIRED_MODES.includes(paymentMode as (typeof PAYMENT_DATE_REQUIRED_MODES)[number]);
+  const { handleFormKeyDown, submitBtnRef } = useFormEnterNavigation();
 
   useEffect(() => {
     Promise.all([axios.get('/api/suppliers'), axios.get('/api/categories')]).then(([sup, cat]) => {
@@ -155,7 +158,8 @@ export default function AddPurchasePage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" id="add-purchase-form">
+      <form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleFormKeyDown} className="space-y-6" id="add-purchase-form">
+        <FormKeyboardHints />
         {/* Section 1: Details & Linking */}
         <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] p-6">
           <h2 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b border-gray-100 flex items-center gap-2">
@@ -304,7 +308,7 @@ export default function AddPurchasePage() {
           <Link href="/admin/purchasing">
             <Button type="button" variant="outline">Cancel</Button>
           </Link>
-          <Button type="submit" isLoading={submitting} className="shadow-md shadow-green-100">
+          <Button type="submit" ref={submitBtnRef} isLoading={submitting} className="shadow-md shadow-green-100">
             {submitting ? 'Saving...' : 'Add Purchase Record'}
           </Button>
         </div>

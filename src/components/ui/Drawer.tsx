@@ -1,8 +1,24 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  '[href]',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function getFocusableElements(panel: HTMLElement) {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.getAttribute('aria-hidden') === 'true') return false;
+    return element.getClientRects().length > 0;
+  });
+}
 
 interface DrawerProps {
   isOpen: boolean;
@@ -13,29 +29,77 @@ interface DrawerProps {
 }
 
 export function Drawer({ isOpen, onClose, title, subtitle, children }: DrawerProps) {
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!isOpen) return;
 
-  useEffect(() => {
-    if (isOpen) {
-      // Small delay to trigger CSS transition
-      requestAnimationFrame(() => setVisible(true));
-      document.body.style.overflow = 'hidden';
-    } else {
-      setVisible(false);
-      document.body.style.overflow = 'unset';
-    }
+    document.body.style.overflow = 'hidden';
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = getFocusableElements(panel);
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        panel.focus();
+      }
+    });
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (e.key !== 'Tab') return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = getFocusableElements(panel);
+      if (focusable.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const active = document.activeElement as HTMLElement | null;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKey);
+
     return () => {
       document.body.style.overflow = 'unset';
+      document.removeEventListener('keydown', handleKey);
+      if (!isOpen) {
+        previouslyFocusedRef.current?.focus();
+      }
     };
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      previouslyFocusedRef.current?.focus();
+    }
   }, [isOpen]);
 
-  if (!mounted) return null;
-  if (!isOpen && !visible) return null;
+  if (!isOpen) return null;
 
   return createPortal(
     <div
@@ -46,15 +110,15 @@ export function Drawer({ isOpen, onClose, title, subtitle, children }: DrawerPro
     >
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 opacity-100"
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        className={`relative z-10 flex flex-col h-full w-full max-w-md bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
-          visible ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative z-10 flex flex-col h-full w-full max-w-md bg-white shadow-2xl transition-transform duration-300 ease-in-out translate-x-0"
       >
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">

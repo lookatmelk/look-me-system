@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { SupplierDrawer } from '@/components/suppliers/SupplierDrawer';
 import { Toaster, showToast } from '@/components/ui/Toaster';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { useKeyboardTableNavigation } from '@/hooks/useKeyboardTableNavigation';
 
 const columnHelper = createColumnHelper<any>();
 
@@ -124,6 +125,23 @@ export default function SuppliersPage() {
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+  const rows = table.getRowModel().rows;
+  const {
+    tableRef,
+    selectedIndex,
+    setSelectedIndex,
+    handleTableKeyDown,
+  } = useKeyboardTableNavigation({
+    rows,
+    onOpenRow: (row) => {
+      setEditingSupplier(row.original);
+      setIsDrawerOpen(true);
+    },
+    onDeleteRow: (row) => {
+      confirmDelete(row.original._id, row.original.name);
+    },
+  });
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <Toaster />
@@ -160,7 +178,18 @@ export default function SuppliersPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="px-4 py-2 border-b border-[var(--color-border)] bg-slate-50 text-xs text-slate-500">
+          Use Arrow Up/Down to select a row, Enter to edit, Delete/Backspace to open delete confirmation.
+        </div>
+
+        <div
+          ref={tableRef}
+          id="suppliers-table-keyboard-region"
+          tabIndex={0}
+          onKeyDown={handleTableKeyDown}
+          className="overflow-x-auto focus:outline-none"
+          aria-label="Suppliers table keyboard region"
+        >
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               {table.getHeaderGroups().map(headerGroup => (
@@ -192,8 +221,15 @@ export default function SuppliersPage() {
                   </div>
                 </td></tr>
               ) : (
-                table.getRowModel().rows.map(row => (
-                  <tr key={row.id} className="hover:bg-green-50/30 transition-colors group">
+                table.getRowModel().rows.map((row, rowIndex) => (
+                  <tr
+                    key={row.id}
+                    data-kb-row-index={rowIndex}
+                    data-selected={selectedIndex === rowIndex}
+                    aria-selected={selectedIndex === rowIndex}
+                    onClick={() => setSelectedIndex(rowIndex)}
+                    className={`transition-colors group cursor-pointer ${selectedIndex === rowIndex ? 'bg-green-100/60' : 'hover:bg-green-50/30'}`}
+                  >
                     {row.getVisibleCells().map(cell => (
                       <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

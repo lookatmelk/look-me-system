@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
 
 const { auth } = NextAuth(authConfig);
 
-export default auth((req: NextRequest & { auth: any }) => {
+export default auth((req: NextRequest & { auth: unknown }) => {
   const { pathname } = req.nextUrl;
 
   const isAdminRoute = pathname.startsWith('/admin');
@@ -18,19 +18,16 @@ export default auth((req: NextRequest & { auth: any }) => {
 
   const session = req.auth;
 
-  // Redirect authenticated users away from login page
   if (isLoginPage && session) {
     return NextResponse.redirect(new URL('/admin/dashboard', req.url));
   }
 
-  // Protect admin routes — redirect to login
   if (isAdminRoute && !session) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Protect API routes — return 401 JSON
   if (isApiProtected && !session) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized' },

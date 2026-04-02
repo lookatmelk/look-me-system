@@ -24,6 +24,8 @@ import clsx from 'clsx';
 import { Suspense } from 'react';
 
 import CostingDetailModal from '@/components/costing/CostingDetailModal';
+import { useKeyboardTableNavigation } from '@/hooks/useKeyboardTableNavigation';
+import { Kbd } from '@/components/ui/Kbd';
 
 function CostingPageContent() {
   const router = useRouter();
@@ -248,6 +250,22 @@ function CostingPageContent() {
     initialState: { pagination: { pageSize: 15 } },
   });
 
+  const rows = table.getRowModel().rows;
+  const {
+    tableRef,
+    selectedIndex,
+    setSelectedIndex,
+    handleTableKeyDown,
+  } = useKeyboardTableNavigation({
+    rows,
+    onOpenRow: (row) => {
+      setSelectedRecord(row.original);
+    },
+    onDeleteRow: (row) => {
+      confirmDelete(row.original._id, row.original.designNo);
+    },
+  });
+
   const totalRecords = data.length;
   const avgProfitPct = useMemo(() => {
     if (data.length === 0) return 0;
@@ -343,8 +361,31 @@ function CostingPageContent() {
           )}
         </div>
 
+        <div className="px-5 py-2.5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Kbd variant="default">↑</Kbd>
+            <Kbd variant="default">↓</Kbd>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Navigate</span>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <Kbd variant="default">Enter</Kbd>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Open</span>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <Kbd variant="default">Del</Kbd>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Delete</span>
+          </div>
+        </div>
+
         {/* Data Table */}
-        <div className="overflow-x-auto">
+        <div
+          ref={tableRef}
+          id="costing-table-keyboard-region"
+          tabIndex={0}
+          onKeyDown={handleTableKeyDown}
+          className="overflow-x-auto focus:outline-none"
+          aria-label="Costing table keyboard region"
+        >
           <table className="w-full text-left border-collapse">
             <thead>
               {table.getHeaderGroups().map(headerGroup => (
@@ -387,12 +428,16 @@ function CostingPageContent() {
                   </td>
                 </tr>
               ) : (
-                table.getRowModel().rows.map(row => (
+                table.getRowModel().rows.map((row, rowIndex) => (
                   <tr
                     key={row.id}
-                    onClick={() => setSelectedRecord(row.original)}
+                    data-kb-row-index={rowIndex}
+                    data-selected={selectedIndex === rowIndex}
+                    aria-selected={selectedIndex === rowIndex}
+                    onClick={() => { setSelectedIndex(rowIndex); setSelectedRecord(row.original); }}
                     className={clsx(
                       'group transition-colors cursor-pointer',
+                      selectedIndex === rowIndex && 'ring-1 ring-inset ring-green-300 bg-green-50/50',
                       row.original.profitPercentage >= 30 ? 'hover:bg-green-50/40' :
                       row.original.profitPercentage >= 20 ? 'hover:bg-amber-50/40' :
                       'hover:bg-red-50/40'

@@ -7,6 +7,8 @@ import * as z from "zod";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Loader2, Eye, EyeOff, AlertCircle, ShoppingCart, Users, Tags } from "lucide-react";
+import { useFormEnterNavigation } from "@/hooks/useFormEnterNavigation";
+import { FormKeyboardHints } from "@/components/ui/FormKeyboardHints";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -25,6 +27,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const { handleFormKeyDown, submitBtnRef } = useFormEnterNavigation();
 
   const {
     register,
@@ -196,7 +200,9 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" id="login-form">
+            <form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleFormKeyDown} className="space-y-5" id="login-form">
+              <FormKeyboardHints />
+
               {/* Email */}
               <div>
                 <label htmlFor="email" className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
@@ -255,6 +261,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 id="login-submit-btn"
+                ref={submitBtnRef}
                 disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2 text-white font-bold py-3.5 px-6 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-60 disabled:pointer-events-none mt-2"
                 style={{

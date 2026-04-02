@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import CostingForm from '@/components/costing/CostingForm';
+import type { CostingFormValues } from '@/components/costing/CostingForm';
 import { showToast } from '@/components/ui/Toaster';
 
 export default function AddCostingPage() {
@@ -13,7 +14,7 @@ export default function AddCostingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: CostingFormValues) => {
     setSubmitting(true);
     setServerError('');
     try {
@@ -22,8 +23,10 @@ export default function AddCostingPage() {
         showToast('success', 'Costing record created successfully');
         router.push('/admin/costing');
       }
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || 'Failed to create costing record.';
+    } catch (err: unknown) {
+      const errorMsg = axios.isAxiosError(err)
+        ? err.response?.data?.error || 'Failed to create costing record.'
+        : 'Failed to create costing record.';
       setServerError(errorMsg);
       showToast('error', errorMsg);
     } finally {
@@ -40,7 +43,7 @@ export default function AddCostingPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Add Costing</h1>
-          <p className="mt-0.5 text-sm text-slate-500 font-medium">Create a new design costing structure.</p>
+          <p className="mt-0.5 text-sm text-slate-500 font-medium">Start from the client&apos;s fixed costing sheet and edit only the working values.</p>
         </div>
       </div>
 
@@ -55,6 +58,7 @@ export default function AddCostingPage() {
         onSubmit={handleSubmit}
         onCancel={() => router.push('/admin/costing')}
         isLoading={submitting}
+        fixedStructure
       />
     </div>
   );

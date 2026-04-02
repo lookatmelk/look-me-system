@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -8,6 +8,8 @@ import { Store, AlertCircle, Loader2, Trash2, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import axios from 'axios';
 import { Button } from '@/components/ui/Button';
+import { FormKeyboardHints } from '@/components/ui/FormKeyboardHints';
+import { useFormEnterNavigation } from '@/hooks/useFormEnterNavigation';
 
 // ─── Zod Schema ───
 
@@ -113,8 +115,7 @@ export default function OrderForm({
   const [shopsLoading, setShopsLoading] = useState(true);
 
   // Focus refs for Enter navigation
-  const inputRefs = useRef<(HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null)[]>([]);
-  const submitBtnRef = useRef<HTMLButtonElement>(null);
+  const { handleFormKeyDown, submitBtnRef } = useFormEnterNavigation();
 
   const {
     register,
@@ -144,25 +145,6 @@ export default function OrderForm({
   });
 
   const allocationsWatch = watch('shopAllocations') || [];
-
-  // Ref registration helpers
-  let refIndex = 0;
-  const getRef = (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null) => {
-    if (el) {
-      inputRefs.current[refIndex] = el;
-    }
-    refIndex++;
-  };
-  const mergeRefs = (registerResult: any) => {
-    const { ref: registerRef, ...rest } = registerResult;
-    return {
-      ...rest,
-      ref: (el: HTMLInputElement | null) => {
-        registerRef(el);
-        getRef(el);
-      },
-    };
-  };
 
   // Fetch active shops
   useEffect(() => {
@@ -288,34 +270,6 @@ export default function OrderForm({
     }
   };
 
-  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
-    if (e.key !== 'Enter') return;
-    const target = e.target as HTMLElement;
-
-    if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
-    e.preventDefault();
-
-    const currentIndex = inputRefs.current.findIndex(ref => ref === target);
-    if (currentIndex === -1) return;
-
-    const nextIndex = currentIndex + 1;
-
-    if (nextIndex < inputRefs.current.length && inputRefs.current[nextIndex]) {
-      const nextElement = inputRefs.current[nextIndex];
-      if (nextElement) {
-        nextElement.focus();
-        if (nextElement instanceof HTMLInputElement) {
-          nextElement.select();
-        }
-      }
-    } else {
-      if (submitBtnRef.current) {
-        submitBtnRef.current.focus();
-        submitBtnRef.current.click();
-      }
-    }
-  };
-
   if (shopsLoading) {
     return (
       <div className="flex items-center justify-center p-12 bg-white rounded-2xl border border-slate-100">
@@ -346,6 +300,8 @@ export default function OrderForm({
         onKeyDown={handleFormKeyDown}
         className="p-6 sm:p-8 space-y-8"
       >
+        <FormKeyboardHints />
+
         {/* Section 1: Design & Order Details */}
         <div className="space-y-6">
           <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
@@ -358,7 +314,7 @@ export default function OrderForm({
                 Design Number <span className="text-red-500">*</span>
               </label>
               <select
-                {...mergeRefs(register('costingId'))}
+                {...register('costingId')}
                 onChange={(e) => handleDesignChange(e.target.value)}
                 className={inputClass(!!errors.costingId)}
               >
@@ -378,7 +334,7 @@ export default function OrderForm({
               </label>
               <input
                 type="text"
-                {...mergeRefs(register('sampleNo'))}
+                {...register('sampleNo')}
                 placeholder="e.g. SAMPLE-001"
                 className={inputClass(!!errors.sampleNo)}
               />
@@ -427,7 +383,7 @@ export default function OrderForm({
               </label>
               <input
                 type="date"
-                {...mergeRefs(register('orderDate'))}
+                {...register('orderDate')}
                 className={inputClass(!!errors.orderDate)}
               />
               {errors.orderDate && <p className="mt-1 text-xs font-semibold text-red-600">{errors.orderDate.message}</p>}
@@ -438,7 +394,7 @@ export default function OrderForm({
                 Status <span className="text-red-500">*</span>
               </label>
               <select
-                {...mergeRefs(register('status'))}
+                {...register('status')}
                 className={inputClass(!!errors.status)}
               >
                 {STATUS_OPTIONS.map((opt) => (
@@ -529,7 +485,7 @@ export default function OrderForm({
                           type="number"
                           min="0"
                           step="1"
-                          {...mergeRefs(register(`shopAllocations.${index}.qty`, { valueAsNumber: true }))}
+                          {...register(`shopAllocations.${index}.qty`, { valueAsNumber: true })}
                           className={`${inputClass(!!errors?.shopAllocations?.[index]?.qty)} text-right font-mono`}
                           placeholder="0"
                         />

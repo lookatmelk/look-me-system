@@ -15,7 +15,7 @@ import {
 import {
   Plus, Search, Filter, ArrowUpDown,
   ChevronLeft, ChevronRight, Eye, Edit2, Trash2,
-  Package, TrendingUp, AlertCircle, Store
+  Store
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Toaster, showToast } from '@/components/ui/Toaster';
@@ -24,6 +24,8 @@ import OrderDetailModal from '@/components/orders/OrderDetailModal';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useKeyboardTableNavigation } from '@/hooks/useKeyboardTableNavigation';
+import { Kbd } from '@/components/ui/Kbd';
 
 interface DesignOption {
   _id: string;
@@ -352,6 +354,22 @@ export default function OrdersPage() {
     initialState: { pagination: { pageSize: 15 } },
   });
 
+  const rows = table.getRowModel().rows;
+  const {
+    tableRef,
+    selectedIndex,
+    setSelectedIndex,
+    handleTableKeyDown,
+  } = useKeyboardTableNavigation({
+    rows,
+    onOpenRow: (row) => {
+      setSelectedRecord(row.original);
+    },
+    onDeleteRow: (row) => {
+      setDeleteConfirm({ open: true, id: row.original._id, designNo: row.original.designNo });
+    },
+  });
+
   return (
     <div className="px-6 py-5 animate-fade-in">
       <Toaster />
@@ -434,8 +452,31 @@ export default function OrdersPage() {
           )}
         </div>
 
+        <div className="px-5 py-2.5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Kbd variant="default">↑</Kbd>
+            <Kbd variant="default">↓</Kbd>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Navigate</span>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <Kbd variant="default">Enter</Kbd>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Open</span>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <Kbd variant="default">Del</Kbd>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Delete</span>
+          </div>
+        </div>
+
         {/* Table */}
-        <div className="overflow-x-auto">
+        <div
+          ref={tableRef}
+          id="orders-table-keyboard-region"
+          tabIndex={0}
+          onKeyDown={handleTableKeyDown}
+          className="overflow-x-auto focus:outline-none"
+          aria-label="Orders table keyboard region"
+        >
           <table className="w-full">
             <thead>
               {table.getHeaderGroups().map(headerGroup => (
@@ -475,12 +516,16 @@ export default function OrdersPage() {
                   </td>
                 </tr>
               ) : (
-                table.getRowModel().rows.map(row => (
+                table.getRowModel().rows.map((row, rowIndex) => (
                   <tr
                     key={row.id}
-                    onClick={() => setSelectedRecord(row.original)}
+                    data-kb-row-index={rowIndex}
+                    data-selected={selectedIndex === rowIndex}
+                    aria-selected={selectedIndex === rowIndex}
+                    onClick={() => { setSelectedIndex(rowIndex); setSelectedRecord(row.original); }}
                     className={clsx(
                       'group border-b border-slate-50 last:border-0 transition-colors cursor-pointer',
+                      selectedIndex === rowIndex && 'ring-1 ring-inset ring-green-300 bg-green-50/50',
                       row.original.status === 'DELIVERED' && 'hover:bg-green-50/40',
                       row.original.status === 'PENDING' && 'hover:bg-amber-50/40',
                       row.original.status === 'IN_PRODUCTION' && 'hover:bg-blue-50/40',

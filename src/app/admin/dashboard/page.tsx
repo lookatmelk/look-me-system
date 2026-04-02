@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   RotateCcw,
   XCircle,
-  Wallet,
   Package,
   Store,
   Hash,
@@ -28,6 +27,7 @@ import {
   DollarSign,
   TrendingDown,
   Layers,
+  Wallet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -274,7 +274,7 @@ function MiniChartCard({
     >
       <h3 className="text-sm font-bold text-slate-700 mb-4">{title}</h3>
       <div className="h-40">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180}>
           {type === 'pie' ? (
             <PieChart>
               <Pie
@@ -660,7 +660,7 @@ export default function DashboardPage() {
           
           {purchaseStatusData.length > 0 ? (
             <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180}>
                 <PieChart>
                   <Pie
                     data={purchaseStatusData}
@@ -740,7 +740,7 @@ export default function DashboardPage() {
           
           {orderStatusData.length > 0 ? (
             <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180}>
                 <BarChart data={orderStatusData}>
                   <XAxis 
                     dataKey="name" 

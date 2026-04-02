@@ -20,12 +20,13 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { signOut, useSession } from "next-auth/react";
+import { Kbd } from "./ui/Kbd";
 
 const navigation = [
-  { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  { name: "Purchasing", href: "/admin/purchasing", icon: ShoppingCart },
-  { name: "Costing", href: "/admin/costing", icon: CircleDollarSign },
-  { name: "Orders", href: "/admin/orders", icon: FileText },
+  { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard, shortcut: "D" },
+  { name: "Purchasing", href: "/admin/purchasing", icon: ShoppingCart, shortcut: "P" },
+  { name: "Costing", href: "/admin/costing", icon: CircleDollarSign, shortcut: "C" },
+  { name: "Orders", href: "/admin/orders", icon: FileText, shortcut: "O" },
 ];
 
 const purchasingSubNavigation = [
@@ -193,6 +194,7 @@ export default function Sidebar() {
                   {!collapsed && (
                     <>
                       <span className="text-sm font-semibold truncate flex-1">{item.name}</span>
+                      <Kbd variant="ghost" className="hidden lg:inline-flex">Alt+{item.shortcut}</Kbd>
                       <button
                         type="button"
                         onClick={(event) => {
@@ -283,7 +285,10 @@ export default function Sidebar() {
                 aria-hidden="true"
               />
               {!collapsed && (
-                <span className="text-sm font-semibold truncate">{item.name}</span>
+                <>
+                  <span className="text-sm font-semibold truncate flex-1">{item.name}</span>
+                  <Kbd variant="ghost" className="hidden lg:inline-flex">Alt+{item.shortcut}</Kbd>
+                </>
               )}
             </Link>
           );
@@ -321,6 +326,7 @@ export default function Sidebar() {
               {!collapsed && (
                 <>
                   <span className="text-sm font-semibold truncate flex-1">Shops</span>
+                  <Kbd variant="ghost" className="hidden lg:inline-flex mr-1">Alt+S</Kbd>
                   <button
                     type="button"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsShopsExpandedManual(!isShopsExpanded); }}
@@ -420,13 +426,16 @@ export default function Sidebar() {
                   {session?.user?.email}
                 </p>
               </div>
-              <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
-                className="text-slate-500 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-white/[0.07]"
-                title="Sign out"
-              >
-                <LogOut style={{ width: 15, height: 15 }} />
-              </button>
+              <div className="flex items-center gap-1">
+                <Kbd variant="ghost">Alt+Q</Kbd>
+                <button
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  className="text-slate-500 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-white/[0.07]"
+                  title="Sign out"
+                >
+                  <LogOut style={{ width: 15, height: 15 }} />
+                </button>
+              </div>
             </>
           )}
         </div>

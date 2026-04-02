@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { FormKeyboardHints } from '@/components/ui/FormKeyboardHints';
 import axios from 'axios';
 import { AlertCircle, CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
+import { useFormEnterNavigation } from '@/hooks/useFormEnterNavigation';
 
 const PAYMENT_DATE_REQUIRED_MODES = ['CHEQUE', 'CREDIT'] as const;
 const TODAY = new Date().toISOString().split('T')[0];
@@ -73,6 +75,29 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
       paymentDate: '',
       status: 'PENDING',
     }
+  });
+
+  const nextStep = useCallback(async () => {
+    let isValid = false;
+    if (step === 1) {
+      isValid = await trigger(['buyDate', 'supplierId', 'categoryId', 'description']);
+    } else if (step === 2) {
+      isValid = await trigger(['units', 'qty', 'rate']);
+    }
+    if (isValid) setStep(step + 1);
+    return isValid;
+  }, [step, trigger]);
+
+  const onBeforeSubmit = useCallback(async () => {
+    if (step < 3) {
+      await nextStep();
+      return false; // Prevent actual form submission
+    }
+    return true; // Allow submission on last step
+  }, [step, nextStep]);
+
+  const { handleFormKeyDown, submitBtnRef } = useFormEnterNavigation({
+    onBeforeSubmit
   });
 
   const qty = watch('qty');
@@ -173,16 +198,6 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
     await onSubmit(payload);
   };
 
-  const nextStep = async () => {
-    let isValid = false;
-    if (step === 1) {
-      isValid = await trigger(['buyDate', 'supplierId', 'categoryId', 'description']);
-    } else if (step === 2) {
-      isValid = await trigger(['units', 'qty', 'rate']);
-    }
-    if (isValid) setStep(step + 1);
-  };
-
   const prevStep = () => setStep(step - 1);
 
   return (
@@ -207,7 +222,9 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(handleFormSubmit)} onKeyDown={handleFormKeyDown} className="space-y-4">
+        <FormKeyboardHints className="mb-2" />
+
         {step === 1 && (
           <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
             <div>
@@ -343,7 +360,7 @@ export function PurchasingFormModal({ isOpen, onClose, onSubmit, initialData, is
                Next <ChevronRight className="w-4 h-4 ml-1" />
              </Button>
           ) : (
-             <Button type="submit" isLoading={isLoading}>
+             <Button type="submit" ref={submitBtnRef} isLoading={isLoading}>
                {initialData ? "Save Record" : "Add Record"}
              </Button>
           )}

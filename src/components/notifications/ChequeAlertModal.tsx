@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle,
@@ -40,21 +40,10 @@ export default function ChequeAlertModal({
   notifications,
   onAcknowledged,
 }: ChequeAlertModalProps) {
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>(notifications);
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    // Slight delay to allow the animation to trigger
-    const t = setTimeout(() => setVisible(true), 50);
-    document.body.style.overflow = "hidden";
-    return () => {
-      clearTimeout(t);
-      document.body.style.overflow = "unset";
-    };
-  }, []);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setItems(notifications);
@@ -68,8 +57,7 @@ export default function ChequeAlertModal({
         const remaining = items.filter((n) => n._id !== id);
         setItems(remaining);
         if (remaining.length === 0) {
-          setVisible(false);
-          setTimeout(() => onAcknowledged(), 300);
+          onAcknowledged();
         }
       } catch {
         // silent
@@ -87,8 +75,7 @@ export default function ChequeAlertModal({
         items.map((n) => axios.patch(`/api/notifications/${n._id}/acknowledge`))
       );
       setItems([]);
-      setVisible(false);
-      setTimeout(() => onAcknowledged(), 300);
+      onAcknowledged();
     } catch {
       // silent
     } finally {
@@ -100,7 +87,74 @@ export default function ChequeAlertModal({
     handleAcknowledgeAll();
   }, [handleAcknowledgeAll]);
 
-  if (!mounted || items.length === 0) return null;
+  useEffect(() => {
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        panel.focus();
+      }
+    });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        handleAcknowledgeAll();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const activeElement = document.activeElement as HTMLElement | null;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [handleAcknowledgeAll]);
+
+  if (items.length === 0) return null;
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("en-LK", {
@@ -111,10 +165,7 @@ export default function ChequeAlertModal({
 
   return createPortal(
     <div
-      className={clsx(
-        "fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity duration-300",
-        visible ? "opacity-100" : "opacity-0"
-      )}
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity duration-300 opacity-100"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="cheque-alert-title"
@@ -133,14 +184,14 @@ export default function ChequeAlertModal({
 
       {/* Modal Panel */}
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className={clsx(
           "relative z-10 w-full max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden",
           "max-h-[92dvh] sm:max-h-[85vh]",
           "rounded-t-2xl sm:rounded-2xl",
           "transition-all duration-300 ease-out",
-          visible
-            ? "translate-y-0 scale-100"
-            : "translate-y-8 sm:translate-y-4 scale-95"
+          "translate-y-0 scale-100"
         )}
       >
         {/* Gradient header accent */}

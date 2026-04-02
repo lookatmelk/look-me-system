@@ -4,6 +4,22 @@ import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  '[href]',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function getFocusableElements(panel: HTMLElement) {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.getAttribute('aria-hidden') === 'true') return false;
+    return element.getClientRects().length > 0;
+  });
+}
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,20 +38,61 @@ const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
 
 export function Modal({ isOpen, onClose, title, subtitle, size = 'md', children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  // Lock body scroll & handle Escape key
+  // Lock body scroll, trap focus, and close on Escape.
   useEffect(() => {
     if (!isOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const focusFirst = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = getFocusableElements(panel);
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        panel.focus();
+      }
+    };
+    requestAnimationFrame(focusFirst);
 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+
+      if (e.key !== 'Tab') return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = getFocusableElements(panel);
+      if (focusable.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const active = document.activeElement as HTMLElement | null;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', handleKey);
+
     return () => {
       document.body.style.overflow = prev;
       document.removeEventListener('keydown', handleKey);
+      previouslyFocusedRef.current?.focus();
     };
   }, [isOpen, onClose]);
 
@@ -58,6 +115,7 @@ export function Modal({ isOpen, onClose, title, subtitle, size = 'md', children 
       {/* Panel */}
       <div
         ref={panelRef}
+        tabIndex={-1}
         className={[
           'relative z-10 w-full bg-white shadow-2xl flex flex-col',
           'max-h-[92dvh] sm:max-h-[90vh]',

@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { CldUploadWidget } from 'next-cloudinary';
 import { Image as ImageIcon, X } from 'lucide-react';
 import Image from 'next/image';
+import { useFormEnterNavigation } from '@/hooks/useFormEnterNavigation';
+import { FormKeyboardHints } from '@/components/ui/FormKeyboardHints';
 
 const categorySchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -28,6 +30,7 @@ interface CategoryFormModalProps {
 
 export function CategoryFormModal({ isOpen, onClose, onSubmit, initialData, isLoading }: CategoryFormModalProps) {
   const [imageUrl, setImageUrl] = useState<string>('');
+  const { handleFormKeyDown, submitBtnRef } = useFormEnterNavigation();
   
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -58,7 +61,9 @@ export function CategoryFormModal({ isOpen, onClose, onSubmit, initialData, isLo
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={initialData ? "Edit Category" : "Add Category"}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleFormKeyDown} className="space-y-4">
+        <FormKeyboardHints />
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Category Name <span className="text-red-500">*</span></label>
           <input
@@ -128,7 +133,7 @@ export function CategoryFormModal({ isOpen, onClose, onSubmit, initialData, isLo
           <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit" isLoading={isLoading}>
+          <Button type="submit" ref={submitBtnRef} isLoading={isLoading}>
             {initialData ? "Save Changes" : "Add Category"}
           </Button>
         </div>

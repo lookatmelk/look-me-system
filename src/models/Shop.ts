@@ -79,9 +79,7 @@ const ShopSchema: Schema = new Schema(
 );
 
 // Indexes
-ShopSchema.index({ slug: 1 }, { unique: true });
 ShopSchema.index({ status: 1 });
-ShopSchema.index({ name: 1 });
 
 // Auto-generate slug from name (pre-validate)
 ShopSchema.pre<IShop>('validate', function () {

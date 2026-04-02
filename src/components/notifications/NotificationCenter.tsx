@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Bell,
@@ -44,36 +44,82 @@ export default function NotificationCenter({
   onClose,
   onCountChange,
 }: NotificationCenterProps) {
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [markingRead, setMarkingRead] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "unread">("unread");
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Fetch notifications when panel opens
+  // Keyboard trap + Escape close.
   useEffect(() => {
     if (!isOpen) return;
-    fetchNotifications();
-  }, [isOpen]);
 
-  // Animate in/out
-  useEffect(() => {
-    if (isOpen) {
-      requestAnimationFrame(() => setVisible(true));
-      document.body.style.overflow = "hidden";
-    } else {
-      setVisible(false);
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        panel.focus();
+      }
+    });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const activeElement = document.activeElement as HTMLElement | null;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-  }, [isOpen]);
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [isOpen, onClose]);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -88,6 +134,12 @@ export default function NotificationCenter({
       setLoading(false);
     }
   }, [onCountChange]);
+
+  // Fetch notifications when panel opens
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchNotifications();
+  }, [isOpen, fetchNotifications]);
 
   const handleMarkRead = useCallback(
     async (id: string) => {
@@ -128,8 +180,7 @@ export default function NotificationCenter({
       maximumFractionDigits: 0,
     }).format(n);
 
-  if (!mounted) return null;
-  if (!isOpen && !visible) return null;
+  if (!isOpen) return null;
 
   const unreadItems = notifications.filter((n) => n.status !== "READ");
   const displayedItems = activeTab === "unread" ? unreadItems : notifications;
@@ -143,19 +194,15 @@ export default function NotificationCenter({
     >
       {/* Backdrop */}
       <div
-        className={clsx(
-          "absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300",
-          visible ? "opacity-100" : "opacity-0"
-        )}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 opacity-100"
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        className={clsx(
-          "relative z-10 flex flex-col h-full w-full max-w-[420px] bg-white shadow-2xl transition-transform duration-300 ease-in-out",
-          visible ? "translate-x-0" : "translate-x-full"
-        )}
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative z-10 flex flex-col h-full w-full max-w-[420px] bg-white shadow-2xl transition-transform duration-300 ease-in-out translate-x-0"
       >
         {/* Header */}
         <div className="flex flex-col px-6 pt-5 pb-4 border-b border-slate-100 flex-shrink-0 bg-white">
@@ -273,7 +320,7 @@ export default function NotificationCenter({
             </div>
           ) : (
             <div className="py-2">
-              {displayedItems.map((notification, index) => {
+              {displayedItems.map((notification) => {
                 const isUrgent = notification.daysBefore === 1;
                 const isUnread = notification.status !== "READ";
                 const supplierName =

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useForm as useHookForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,6 +8,8 @@ import clsx from 'clsx';
 import { X, Store, MapPin, User, Phone, Mail, Loader2, Save } from 'lucide-react';
 import { showToast } from '@/components/ui/Toaster';
 import axios from 'axios';
+import { FormKeyboardHints } from '@/components/ui/FormKeyboardHints';
+import { useFormEnterNavigation } from '@/hooks/useFormEnterNavigation';
 
 const shopSchema = z.object({
   name: z.string().min(1, 'Shop name is required').max(100, 'Max 100 characters'),
@@ -45,6 +47,10 @@ const COLORS = [
 
 export default function ShopDrawer({ isOpen, onClose, shop, onSave }: ShopDrawerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
+  const { handleFormKeyDown, submitBtnRef } = useFormEnterNavigation();
 
   const {
     register,
@@ -93,6 +99,77 @@ export default function ShopDrawer({ isOpen, onClose, shop, onSave }: ShopDrawer
     }
   }, [shop, isOpen, reset]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusFirstElement = () => {
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+
+      const focusable = Array.from(
+        drawer.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else {
+        drawer.focus();
+      }
+    };
+
+    requestAnimationFrame(focusFirstElement);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+
+      const focusable = Array.from(
+        drawer.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
+
+      const activeElement = document.activeElement as HTMLElement | null;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [isOpen, onClose]);
+
   const onSubmit = async (data: ShopFormData) => {
     setIsSubmitting(true);
     try {
@@ -133,7 +210,7 @@ export default function ShopDrawer({ isOpen, onClose, shop, onSave }: ShopDrawer
       />
       
       {/* Drawer */}
-      <div className="relative z-10 flex flex-col h-full w-full max-w-sm bg-white shadow-2xl animate-fade-in-left">
+      <div ref={drawerRef} tabIndex={-1} className="relative z-10 flex flex-col h-full w-full max-w-sm bg-white shadow-2xl animate-fade-in-left">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
           <div>
@@ -154,7 +231,8 @@ export default function ShopDrawer({ isOpen, onClose, shop, onSave }: ShopDrawer
         </div>
 
         {/* Form Body */}
-        <form id="shop-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <form id="shop-form" onSubmit={handleSubmit(onSubmit)} onKeyDown={handleFormKeyDown} className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          <FormKeyboardHints />
           
           <div className="space-y-4">
             {/* Status Toggle */}
@@ -313,6 +391,7 @@ export default function ShopDrawer({ isOpen, onClose, shop, onSave }: ShopDrawer
             Cancel
           </button>
           <button
+            ref={submitBtnRef}
             type="submit"
             form="shop-form"
             disabled={isSubmitting}
